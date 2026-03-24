@@ -1,0 +1,68 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #f5f4f0;
+  --color-surface: #ffffff;
+  --color-border: #eae8e1;
+  --color-text-primary: #1a1a18;
+  --color-text-secondary: #8a8880;
+  --color-text-tertiary: #a09e96;
+  --color-accent-coral: #d85a30;
+  --color-accent-blue: #185fa5;
+  --color-zone-green: #4a8c1c;
+  --color-zone-amber: #c48a0a;
+  --color-zone-red: #c03030;
+  --color-interactive: #6c5ce7;
+  --color-topbar: #1a1a18;
+
+  --font-family-sans: 'DM Sans', system-ui, -apple-system, sans-serif;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  font-family: var(--font-family-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text-primary);
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+input, select, textarea, button {
+  font-family: inherit;
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: 2px solid var(--color-interactive);
+  outline-offset: -1px;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+::selection {
+  background-color: color-mix(in srgb, var(--color-interactive) 20%, transparent);
+}
