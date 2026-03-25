@@ -57,6 +57,17 @@ app.get('/api/state', async (req, res) => {
   }
 });
 
+// API: Health Check for Troubleshooting
+app.get('/api/health', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ status: 'error', message: 'MySQL Pool is entirely uninitialized' });
+    const [rows] = await pool.query('SELECT 1 as db_works');
+    res.json({ status: 'connected', test_result: rows });
+  } catch (err) {
+    res.status(500).json({ status: 'disconnected', error: err.message });
+  }
+});
+
 // API: Save State
 app.post('/api/state', async (req, res) => {
   try {
@@ -64,17 +75,18 @@ app.post('/api/state', async (req, res) => {
     const { key, state } = req.body;
     if (!key || state === undefined) return res.status(400).json({ error: 'Missing key or state' });
     
-    // UPSERT pattern for MySQL
+    // UPSERT pattern compatible with ALL MySQL/MariaDB versions
+    const stateJson = JSON.stringify(state);
     const query = `
       INSERT INTO app_data (id, state) 
       VALUES (?, ?) 
-      ON DUPLICATE KEY UPDATE state = VALUES(state)
+      ON DUPLICATE KEY UPDATE state = ?
     `;
-    await pool.query(query, [key, JSON.stringify(state)]);
+    await pool.query(query, [key, stateJson, stateJson]);
     res.json({ success: true });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Database error' });
+    res.status(500).json({ error: err.message || 'Database error' });
   }
 });
 
