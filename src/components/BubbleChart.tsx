@@ -88,14 +88,31 @@ export default function BubbleChart({ onBubbleClick }: { onBubbleClick: (id: str
     return isNaN(normalized) ? minR : minR + normalized * (maxR - minR);
   };
 
-  // Smart label placement: prefer right, fall back to left if near edge
-  const getLabelAnchor = (cx: number, r: number) => {
-    if (cx + r + 60 > PADDING.left + plotW) return { x: cx - r - 4, anchor: 'end' as const };
-    return { x: cx + r + 5, anchor: 'start' as const };
-  };
-
   return (
     <div ref={containerRef} style={{ position: 'relative', width: '100%' }}>
+      
+      {/* Legend */}
+      <div style={{
+        position: 'absolute', top: 12, right: 16, zIndex: 10,
+        display: 'flex', gap: 12, fontSize: 10, fontWeight: 600,
+        background: 'var(--color-surface)', padding: '6px 10px',
+        borderRadius: 8, border: '1px solid var(--color-border)',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <div style={{ width: 8, height: 8, borderRadius: 4, background: bubbleColors.green }} />
+          <span style={{ color: 'var(--color-text-secondary)' }}>Top Priority</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <div style={{ width: 8, height: 8, borderRadius: 4, background: bubbleColors.yellow }} />
+          <span style={{ color: 'var(--color-text-secondary)' }}>Review / Monitor</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <div style={{ width: 8, height: 8, borderRadius: 4, background: bubbleColors.red }} />
+          <span style={{ color: 'var(--color-text-secondary)' }}>Low Priority</span>
+        </div>
+      </div>
+
       <svg
         viewBox={`0 0 ${viewWidth} ${totalHeight}`}
         style={{ width: '100%', height: 'auto', display: 'block' }}
@@ -193,7 +210,6 @@ export default function BubbleChart({ onBubbleClick }: { onBubbleClick: (id: str
           const cy = scaleY(account.capabilityScore);
           const r = getBubbleRadius(account.size);
           const stale = isStale(account);
-          const label = getLabelAnchor(cx, r);
 
           return (
             <g key={account.id} style={{ cursor: 'pointer' }}
@@ -202,26 +218,38 @@ export default function BubbleChart({ onBubbleClick }: { onBubbleClick: (id: str
               onMouseLeave={() => setTooltip(null)}
             >
               {/* Shadow */}
-              <motion.circle
-                cx={cx} cy={cy} r={r + 1}
-                fill="rgba(0,0,0,0.08)"
-                initial={false}
-                animate={{ cx, cy }}
-                transition={{ duration: 0.4, ease: 'easeOut' }}
-              />
+              <motion.circle cx={cx} cy={cy} r={r + 1} fill="rgba(0,0,0,0.08)" initial={false} animate={{ cx, cy }} transition={{ duration: 0.4 }} />
+              
               {/* Bubble */}
               <motion.circle
                 cx={cx} cy={cy} r={r}
-                fill={bubbleColors[account.zone]}
+                fill={bubbleColors[account.zone] || bubbleColors.yellow}
                 fillOpacity={stale ? 0.35 : 0.7}
-                stroke={bubbleColors[account.zone]}
+                stroke={bubbleColors[account.zone] || bubbleColors.yellow}
                 strokeWidth={2}
                 strokeOpacity={stale ? 0.3 : 0.9}
                 initial={false}
                 animate={{ cx, cy }}
-                transition={{ duration: 0.4, ease: 'easeOut' }}
+                transition={{ duration: 0.4 }}
               />
-              {/* Size label inside bubble */}
+              
+              {/* Name label perfectly centered under the bubble */}
+              <motion.text
+                x={cx} y={cy + r + 14}
+                textAnchor="middle"
+                fontSize={10} fontWeight={600}
+                fill="var(--color-text-primary)"
+                fontFamily="var(--font-family-sans)"
+                opacity={stale ? 0.4 : 0.85}
+                style={{ pointerEvents: 'none' }}
+                initial={false}
+                animate={{ x: cx, y: cy + r + 14 }}
+                transition={{ duration: 0.4 }}
+              >
+                {account.name || 'Unnamed Account'}
+              </motion.text>
+              
+              {/* Size label inside bubble (only if bubble is big enough) */}
               {r >= 14 && (
                 <motion.text
                   x={cx} y={cy + 4}
@@ -230,26 +258,11 @@ export default function BubbleChart({ onBubbleClick }: { onBubbleClick: (id: str
                   style={{ pointerEvents: 'none' }}
                   initial={false}
                   animate={{ x: cx, y: cy + 4 }}
-                  transition={{ duration: 0.4, ease: 'easeOut' }}
+                  transition={{ duration: 0.4 }}
                 >
                   {formatCurrency(account.size)}
                 </motion.text>
               )}
-              {/* Name label outside */}
-              <motion.text
-                x={label.x} y={cy + 3}
-                textAnchor={label.anchor}
-                fontSize={10} fontWeight={500}
-                fill="var(--color-text-primary)"
-                fontFamily="var(--font-family-sans)"
-                opacity={stale ? 0.4 : 0.85}
-                style={{ pointerEvents: 'none' }}
-                initial={false}
-                animate={{ x: label.x, y: cy + 3 }}
-                transition={{ duration: 0.4, ease: 'easeOut' }}
-              >
-                {account.name}
-              </motion.text>
             </g>
           );
         })}
