@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { KAMProvider, useKAMStore } from './hooks/useKAMStore';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import TopBar from './components/TopBar';
 import PortfolioScreen from './components/PortfolioScreen';
 import AccountsScreen from './components/AccountsScreen';
@@ -36,8 +37,10 @@ function AppContent() {
 
 export default function App() {
   return (
-    <KAMProvider>
-      <AppContent />
-    </KAMProvider>
+    <ErrorBoundary>
+      <KAMProvider>
+        <AppContent />
+      </KAMProvider>
+    </ErrorBoundary>
   );
 }

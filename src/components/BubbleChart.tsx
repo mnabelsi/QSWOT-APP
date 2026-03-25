@@ -66,23 +66,26 @@ export default function BubbleChart({ onBubbleClick }: { onBubbleClick: (id: str
     return PADDING.top + plotH - ((clamped - minScore) / scoreRange) * plotH;
   };
 
-  const getBubbleRadius = (size: number) => {
+  const getBubbleRadius = (size: number | string) => {
     const minR = 6;
     const maxR = 45;
-    const sizes = enrichedAccounts.map(a => a.size);
+    // Filter out NaN or corrupted string values from older localstorage
+    const sizes = enrichedAccounts.map(a => Number(a.size)).filter(s => !isNaN(s));
+    if (sizes.length === 0) return minR;
+    
     const maxSize = Math.max(...sizes, 1);
     const minSize = Math.min(...sizes, 0);
     
     if (maxSize === minSize) return (minR + maxR) / 2;
     
-    // Use square root scaling so the circle's area is proportional to the account size.
-    // This is the correct way to map data to circle sizes for human perception.
+    const validSize = isNaN(Number(size)) ? minSize : Number(size);
     const sqrtMin = Math.sqrt(minSize);
     const sqrtMax = Math.sqrt(maxSize);
-    const sqrtVal = Math.sqrt(size);
+    const sqrtVal = Math.sqrt(validSize);
     
     const normalized = (sqrtVal - sqrtMin) / (sqrtMax - sqrtMin);
-    return minR + normalized * (maxR - minR);
+    // Explicit NaN fallback just in case
+    return isNaN(normalized) ? minR : minR + normalized * (maxR - minR);
   };
 
   // Smart label placement: prefer right, fall back to left if near edge
