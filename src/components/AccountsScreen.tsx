@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useKAMStore } from '../hooks/useKAMStore';
-import AccountCard from './AccountCard';
 import AccountDetailModal from './AccountDetailModal';
+import AccountsTable from './AccountsTable';
 
 export default function AccountsScreen() {
   const { accounts, loadSampleAccounts } = useKAMStore();
@@ -9,11 +9,11 @@ export default function AccountsScreen() {
 
   return (
     <div style={{ padding: '16px 20px', maxWidth: 1100, margin: '0 auto', width: '100%' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <div>
-          <h1 style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em' }}>Accounts</h1>
-          <p style={{ fontSize: 12, color: 'var(--color-text-tertiary)', marginTop: 2 }}>
-            {accounts.length} account{accounts.length !== 1 ? 's' : ''} in your portfolio
+          <h1 style={{ fontSize: 24, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--color-text-primary)' }}>Accounts Base</h1>
+          <p style={{ fontSize: 13, color: 'var(--color-text-tertiary)', marginTop: 4 }}>
+            Manage {accounts.length} account{accounts.length !== 1 ? 's' : ''} in your portfolio
           </p>
         </div>
         <button
@@ -86,15 +86,8 @@ export default function AccountsScreen() {
           </div>
         </div>
       ) : (
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-          gap: 10,
-          marginTop: 10,
-        }}>
-          {accounts.map(account => (
-            <AccountCard key={account.id} accountId={account.id} />
-          ))}
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          <AccountsTable onEdit={() => setShowForm(true)} />
         </div>
       )}
     </div>
