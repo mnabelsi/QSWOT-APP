@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useKAMStore } from '../hooks/useKAMStore';
 import { parseCurrencyInput } from '../lib/currency';
+import Combobox from './Combobox';
 import type { Account, AccountType, Ownership, ContractStatus, StrategicPriority } from '../types';
 
 const THERAPEUTIC_AREAS = [
@@ -12,15 +13,7 @@ const THERAPEUTIC_AREAS = [
   'Gastroenterology', 'Urology', 'Dermatology', 'Endocrinology',
 ];
 
-const ACCOUNT_TYPES: { value: AccountType; label: string }[] = [
-  { value: 'hospital', label: 'Hospital' },
-  { value: 'university_hospital', label: 'University Hospital' },
-  { value: 'clinic', label: 'Clinic' },
-  { value: 'surgical_center', label: 'Surgical Center' },
-  { value: 'distributor', label: 'Distributor' },
-  { value: 'gpo', label: 'GPO' },
-  { value: 'other', label: 'Other' },
-];
+
 
 const TERRITORIES = ['North', 'South', 'East', 'West', 'Central'];
 
@@ -31,7 +24,7 @@ interface AccountDetailModalProps {
 }
 
 export default function AccountDetailModal({ account, open, onClose }: AccountDetailModalProps) {
-  const { addAccount, updateAccount } = useKAMStore();
+  const { accounts, addAccount, updateAccount } = useKAMStore();
   const isNew = account === null;
 
   const [form, setForm] = useState({
@@ -54,6 +47,25 @@ export default function AccountDetailModal({ account, open, onClose }: AccountDe
   const [taInput, setTaInput] = useState('');
   const [showTaSuggestions, setShowTaSuggestions] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
+
+  // Derive unique options from historical data combined with defaults
+  const typeOptions = useMemo(() => {
+    const existing = new Set(accounts.map(a => a.type).filter(Boolean));
+    ['Hospital', 'University Hospital', 'Clinic', 'Surgical Center', 'Distributor', 'GPO', 'Other'].forEach(t => existing.add(t));
+    return Array.from(existing);
+  }, [accounts]);
+
+  const territoryOptions = useMemo(() => {
+    const existing = new Set(accounts.map(a => a.territory).filter((t): t is string => !!t));
+    TERRITORIES.forEach(t => existing.add(t));
+    return Array.from(existing);
+  }, [accounts]);
+
+  const ownershipOptions = useMemo(() => {
+    const existing = new Set(accounts.map(a => a.ownership).filter((o): o is string => !!o));
+    ['Public', 'Private', 'Mixed'].forEach(o => existing.add(o));
+    return Array.from(existing);
+  }, [accounts]);
 
   // Initialize form when account changes
   useEffect(() => {
@@ -265,41 +277,33 @@ export default function AccountDetailModal({ account, open, onClose }: AccountDe
                   </div>
                   <div>
                     <label style={labelStyle}>Account Type</label>
-                    <select
+                    <Combobox
                       value={form.type}
-                      onChange={e => setForm(f => ({ ...f, type: e.target.value as AccountType }))}
-                      style={{ ...inputStyle, cursor: 'pointer' }}
-                    >
-                      {ACCOUNT_TYPES.map(t => (
-                        <option key={t.value} value={t.value}>{t.label}</option>
-                      ))}
-                    </select>
+                      onChange={val => setForm(f => ({ ...f, type: val as AccountType }))}
+                      options={typeOptions}
+                      placeholder="e.g. Hospital, Custom..."
+                      inputStyle={inputStyle}
+                    />
                   </div>
                   <div>
                     <label style={labelStyle}>Territory / Region</label>
-                    <select
+                    <Combobox
                       value={form.territory}
-                      onChange={e => setForm(f => ({ ...f, territory: e.target.value }))}
-                      style={{ ...inputStyle, cursor: 'pointer' }}
-                    >
-                      <option value="">Select…</option>
-                      {TERRITORIES.map(t => (
-                        <option key={t} value={t}>{t}</option>
-                      ))}
-                    </select>
+                      onChange={val => setForm(f => ({ ...f, territory: val }))}
+                      options={territoryOptions}
+                      placeholder="e.g. North, Global..."
+                      inputStyle={inputStyle}
+                    />
                   </div>
                   <div>
                     <label style={labelStyle}>Ownership</label>
-                    <select
+                    <Combobox
                       value={form.ownership}
-                      onChange={e => setForm(f => ({ ...f, ownership: e.target.value as Ownership }))}
-                      style={{ ...inputStyle, cursor: 'pointer' }}
-                    >
-                      <option value="">Select…</option>
-                      <option value="public">Public</option>
-                      <option value="private">Private</option>
-                      <option value="mixed">Mixed (PPP)</option>
-                    </select>
+                      onChange={val => setForm(f => ({ ...f, ownership: val as Ownership }))}
+                      options={ownershipOptions}
+                      placeholder="e.g. Public, Private, NGO..."
+                      inputStyle={inputStyle}
+                    />
                   </div>
                   <div>
                     <label style={labelStyle}>Number of Beds</label>

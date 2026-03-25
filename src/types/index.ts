@@ -22,8 +22,8 @@ export interface Template {
   capabilityCriteria: Criterion[];
 }
 
-export type AccountType = 'hospital' | 'clinic' | 'surgical_center' | 'university_hospital' | 'distributor' | 'gpo' | 'other';
-export type Ownership = 'public' | 'private' | 'mixed';
+export type AccountType = 'hospital' | 'clinic' | 'surgical_center' | 'university_hospital' | 'distributor' | 'gpo' | 'other' | (string & {});
+export type Ownership = 'public' | 'private' | 'mixed' | (string & {});
 export type ContractStatus = 'active' | 'expiring' | 'expired' | 'prospect' | 'none';
 export type StrategicPriority = 'high' | 'medium' | 'low';
 
