@@ -15,7 +15,7 @@ app.use(express.json({ limit: '50mb' }));
 
 // Database configuration
 const dbConfig = {
-  host: process.env.DB_HOST || 'localhost',
+  host: process.env.DB_HOST || '127.0.0.1',
   user: process.env.DB_USER || 'u975944253_mahmodnabelsi',
   password: process.env.DB_PASSWORD || '@flaT0nne14752',
   database: process.env.DB_NAME || 'u975944253_QSWOT'
