@@ -47,7 +47,18 @@ app.get('/api/state', async (req, res) => {
     const key = req.query.key || 'default';
     const [rows] = await pool.query('SELECT state FROM app_data WHERE id = ?', [key]);
     if (rows.length > 0) {
-      res.json(rows[0].state);
+      let state = rows[0].state;
+      // MariaDB often returns JSON columns as LONGTEXT strings instead of objects.
+      // We must manually parse it back so the frontend receives a proper Javascript object/array
+      // instead of an escaped string that causes `.map is not a function` crashes.
+      if (typeof state === 'string') {
+        try {
+          state = JSON.parse(state);
+        } catch (e) {
+          console.error("Failed to parse MariaDB JSON string:", e);
+        }
+      }
+      res.json(state);
     } else {
       res.json(null); // No data yet
     }
