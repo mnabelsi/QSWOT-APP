@@ -234,35 +234,29 @@ export default function BubbleChart({ onBubbleClick }: { onBubbleClick: (id: str
               />
               
               {/* Name label perfectly centered ON the bubble */}
-              <motion.text
+              <text
                 x={cx} y={r >= 14 ? cy - 1 : cy + 3}
                 textAnchor="middle"
                 fontSize={10} fontWeight={700}
                 fill="white"
                 fontFamily="var(--font-family-sans)"
                 opacity={stale ? 0.5 : 1}
-                style={{ pointerEvents: 'none', textShadow: '0 1px 2px rgba(0,0,0,0.5), 0 0 4px rgba(0,0,0,0.3)' }}
-                initial={false}
-                animate={{ x: cx, y: r >= 14 ? cy - 1 : cy + 3 }}
-                transition={{ duration: 0.4 }}
+                style={{ pointerEvents: 'none', textShadow: '0 1px 2px rgba(0,0,0,0.5), 0 0 4px rgba(0,0,0,0.3)', transition: 'all 0.4s ease-out' }}
               >
                 {account.name || 'Unnamed Account'}
-              </motion.text>
+              </text>
               
               {/* Size label inside bubble (only if bubble is big enough) */}
               {r >= 14 && (
-                <motion.text
+                <text
                   x={cx} y={cy + 9}
                   textAnchor="middle" fontSize={8} fontWeight={700}
                   fill="white" fontFamily="var(--font-family-sans)"
                   opacity={stale ? 0.5 : 0.9}
-                  style={{ pointerEvents: 'none', textShadow: '0 1px 2px rgba(0,0,0,0.5), 0 0 4px rgba(0,0,0,0.3)' }}
-                  initial={false}
-                  animate={{ x: cx, y: cy + 9 }}
-                  transition={{ duration: 0.4 }}
+                  style={{ pointerEvents: 'none', textShadow: '0 1px 2px rgba(0,0,0,0.5), 0 0 4px rgba(0,0,0,0.3)', transition: 'all 0.4s ease-out' }}
                 >
                   {formatCurrency(account.size)}
-                </motion.text>
+                </text>
               )}
             </g>
           );
