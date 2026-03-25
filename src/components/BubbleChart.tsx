@@ -233,17 +233,17 @@ export default function BubbleChart({ onBubbleClick }: { onBubbleClick: (id: str
                 transition={{ duration: 0.4 }}
               />
               
-              {/* Name label perfectly centered under the bubble */}
+              {/* Name label perfectly centered ON the bubble */}
               <motion.text
-                x={cx} y={cy + r + 14}
+                x={cx} y={r >= 14 ? cy - 1 : cy + 3}
                 textAnchor="middle"
-                fontSize={10} fontWeight={600}
-                fill="var(--color-text-primary)"
+                fontSize={10} fontWeight={700}
+                fill="white"
                 fontFamily="var(--font-family-sans)"
-                opacity={stale ? 0.4 : 0.85}
-                style={{ pointerEvents: 'none' }}
+                opacity={stale ? 0.5 : 1}
+                style={{ pointerEvents: 'none', textShadow: '0 1px 2px rgba(0,0,0,0.5), 0 0 4px rgba(0,0,0,0.3)' }}
                 initial={false}
-                animate={{ x: cx, y: cy + r + 14 }}
+                animate={{ x: cx, y: r >= 14 ? cy - 1 : cy + 3 }}
                 transition={{ duration: 0.4 }}
               >
                 {account.name || 'Unnamed Account'}
@@ -252,12 +252,13 @@ export default function BubbleChart({ onBubbleClick }: { onBubbleClick: (id: str
               {/* Size label inside bubble (only if bubble is big enough) */}
               {r >= 14 && (
                 <motion.text
-                  x={cx} y={cy + 4}
-                  textAnchor="middle" fontSize={9} fontWeight={700}
+                  x={cx} y={cy + 9}
+                  textAnchor="middle" fontSize={8} fontWeight={700}
                   fill="white" fontFamily="var(--font-family-sans)"
-                  style={{ pointerEvents: 'none' }}
+                  opacity={stale ? 0.5 : 0.9}
+                  style={{ pointerEvents: 'none', textShadow: '0 1px 2px rgba(0,0,0,0.5), 0 0 4px rgba(0,0,0,0.3)' }}
                   initial={false}
-                  animate={{ x: cx, y: cy + 4 }}
+                  animate={{ x: cx, y: cy + 9 }}
                   transition={{ duration: 0.4 }}
                 >
                   {formatCurrency(account.size)}
