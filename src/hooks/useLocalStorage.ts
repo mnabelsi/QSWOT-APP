@@ -1,14 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 
 export function useLocalStorage<T>(key: string, defaultValue: T): [T, (value: T | ((prev: T) => T)) => void] {
-  // Initialize from cache immediately for fast render
-  const [state, setState] = useState<T>(() => {
-    try {
-      const stored = localStorage.getItem(key);
-      if (stored !== null) return JSON.parse(stored);
-    } catch { /* ignore */ }
-    return defaultValue;
-  });
+  // Always start with the default empty value to enforce the Database as the single source of truth.
+  // We no longer read from localStorage immediately, so you don't see ghost data from the browser.
+  const [state, setState] = useState<T>(defaultValue);
 
   const isFirstRender = useRef(true);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -21,13 +16,24 @@ export function useLocalStorage<T>(key: string, defaultValue: T): [T, (value: T 
         const res = await fetch(`/api/state?key=${key}`);
         if (!res.ok) return;
         const data = await res.json();
-        if (data !== null && mounted) {
-          setState(data);
-          // Update local cache too
-          localStorage.setItem(key, JSON.stringify(data));
+        
+        if (mounted) {
+          if (data !== null) {
+            setState(data);
+          } else {
+            // If the database is completely empty (no rows for this key),
+            // we just keep the empty defaultValue. We don't load from localStorage.
+          }
         }
       } catch (err) {
         console.error('Failed to sync from database:', err);
+        // Only if the database is 100% offline do we attempt to rescue data from the browser
+        if (mounted) {
+          try {
+            const stored = localStorage.getItem(key);
+            if (stored !== null) setState(JSON.parse(stored));
+          } catch { /* ignore */ }
+        }
       }
     };
     loadFromDB();
