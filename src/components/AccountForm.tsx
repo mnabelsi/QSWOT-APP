@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useKAMStore } from '../hooks/useKAMStore';
 import { parseCurrencyInput } from '../lib/currency';
 import type { AccountType } from '../types';
@@ -15,7 +15,7 @@ export default function AccountForm({ onClose }: { onClose: () => void }) {
     if (!name.trim() || !size) return;
     const parsed = parseCurrencyInput(size);
     if (parsed === null || parsed < 0) return;
-    addAccount(name.trim(), parsed, type);
+    addAccount({ name: name.trim(), size: parsed, type });
     setName('');
     setSize('');
     setType('hospital');

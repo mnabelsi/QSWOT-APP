@@ -1,9 +1,5 @@
 import type { Template } from '../types';
-import { generateId } from '../lib/ids';
 
-function makeId(): string {
-  return generateId();
-}
 
 export const defaultTemplate: Template = {
   id: 'default-meta-template',

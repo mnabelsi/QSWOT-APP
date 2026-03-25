@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import type { Criterion } from '../types';
 import { useKAMStore } from '../hooks/useKAMStore';
 import BenchmarkCards from './BenchmarkCards';
 
