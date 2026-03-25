@@ -71,7 +71,7 @@ export default function ScoreSlideOver() {
               top: 0,
               right: 0,
               bottom: 0,
-              width: 480,
+              width: 600,
               maxWidth: '95vw',
               background: 'var(--color-surface)',
               zIndex: 70,

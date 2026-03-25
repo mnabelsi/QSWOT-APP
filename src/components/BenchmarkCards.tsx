@@ -59,7 +59,7 @@ export default function BenchmarkCards({ benchmarks, selectedScore, onSelect }: 
               color: isSelected ? colors.text : 'var(--color-text-primary)',
               textAlign: 'center',
               lineHeight: 1.3,
-              wordBreak: 'break-word',
+              wordBreak: 'normal',
             }}>
               {bm.label}
             </span>
