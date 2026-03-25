@@ -3,10 +3,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useKAMStore } from '../hooks/useKAMStore';
 import type { EnrichedAccount } from '../types';
 import { formatCurrency } from '../lib/currency';
+import { useLocalStorage } from '../hooks/useLocalStorage';
 import ZoneBadge from './ZoneBadge';
 
 interface SortConfig {
-  key: keyof EnrichedAccount;
+  key: string;
   direction: 'asc' | 'desc';
 }
 
@@ -14,13 +15,26 @@ const ALL_COLUMNS = [
   { id: 'name', label: 'Name' },
   { id: 'size', label: 'Size (€)' },
   { id: 'type', label: 'Type' },
+  { id: 'beds', label: 'Hospital Beds' },
   { id: 'territory', label: 'Territory' },
   { id: 'ownership', label: 'Ownership' },
   { id: 'contractStatus', label: 'Contract' },
   { id: 'strategicPriority', label: 'Priority' },
   { id: 'zone', label: 'Performance Zone' },
   { id: 'scoredCount', label: 'Scoring' },
+  { id: 'contactName', label: 'Contact Name' },
+  { id: 'contactRole', label: 'Contact Role' },
+  { id: 'contactEmail', label: 'Contact Email' },
+  { id: 'notes', label: 'Notes' },
+  { id: 'createdAt', label: 'Added Date' },
 ];
+
+const getSortValue = (acc: EnrichedAccount, key: string): string | number | undefined => {
+  if (key === 'contactName') return acc.contact?.name;
+  if (key === 'contactRole') return acc.contact?.role;
+  if (key === 'contactEmail') return acc.contact?.email;
+  return acc[key as keyof EnrichedAccount] as any;
+};
 
 export default function AccountsTable({ onEdit }: { onEdit: (id: string) => void }) {
   const { enrichedAccounts, deleteAccount } = useKAMStore();
@@ -28,9 +42,10 @@ export default function AccountsTable({ onEdit }: { onEdit: (id: string) => void
   const [search, setSearch] = useState('');
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'size', direction: 'desc' });
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(
-    new Set(['name', 'size', 'type', 'territory', 'contractStatus', 'zone', 'scoredCount'])
-  );
+  
+  const [storedCols, setStoredCols] = useLocalStorage<string[]>('qswot-table-cols', ['name', 'size', 'type', 'territory', 'contractStatus', 'zone', 'scoredCount']);
+  const visibleColumns = useMemo(() => new Set(storedCols), [storedCols]);
+  
   const [showColSelector, setShowColSelector] = useState(false);
 
   // Filtering
@@ -50,12 +65,12 @@ export default function AccountsTable({ onEdit }: { onEdit: (id: string) => void
   const sortedData = useMemo(() => {
     const data = [...filteredData];
     data.sort((a, b) => {
-      const aVal = a[sortConfig.key];
-      const bVal = b[sortConfig.key];
+      const aVal = getSortValue(a, sortConfig.key);
+      const bVal = getSortValue(b, sortConfig.key);
       
-      if (aVal === undefined && bVal === undefined) return 0;
-      if (aVal === undefined) return 1;
-      if (bVal === undefined) return -1;
+      if (!aVal && !bVal) return 0;
+      if (!aVal) return 1;
+      if (!bVal) return -1;
 
       if (typeof aVal === 'string' && typeof bVal === 'string') {
         const compare = aVal.localeCompare(bVal);
@@ -69,7 +84,7 @@ export default function AccountsTable({ onEdit }: { onEdit: (id: string) => void
     return data;
   }, [filteredData, sortConfig]);
 
-  const handleSort = (key: keyof EnrichedAccount) => {
+  const handleSort = (key: string) => {
     setSortConfig(prev => ({
       key,
       direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
@@ -92,7 +107,7 @@ export default function AccountsTable({ onEdit }: { onEdit: (id: string) => void
     const next = new Set(visibleColumns);
     if (next.has(colId)) next.delete(colId);
     else next.add(colId);
-    if (next.size > 0) setVisibleColumns(next); // Prevent hiding all
+    if (next.size > 0) setStoredCols(Array.from(next)); // Prevent hiding all
   };
 
   const handleDeleteSelected = () => {
@@ -275,10 +290,17 @@ export default function AccountsTable({ onEdit }: { onEdit: (id: string) => void
                   </td>
                   
                   {visibleColumns.has('name') && (
-                    <td style={{ padding: '12px 16px', fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                    <td style={{ padding: '12px 16px', fontWeight: 600 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div style={{ width: 8, height: 8, borderRadius: 4, background: account.zone === 'green' ? '#22c55e' : account.zone === 'red' ? '#ef4444' : '#eab308' }} />
-                        {account.name}
+                        <div style={{ width: 8, height: 8, borderRadius: 4, background: account.zone === 'green' ? '#22c55e' : account.zone === 'red' ? '#ef4444' : '#eab308', flexShrink: 0 }} />
+                        <span
+                          onClick={() => onEdit(account.id)}
+                          style={{ color: 'var(--color-interactive)', cursor: 'pointer', outline: 'none' }}
+                          onMouseOver={(e) => (e.currentTarget.style.textDecoration = 'underline')}
+                          onMouseOut={(e) => (e.currentTarget.style.textDecoration = 'none')}
+                        >
+                          {account.name}
+                        </span>
                       </div>
                     </td>
                   )}
@@ -294,6 +316,12 @@ export default function AccountsTable({ onEdit }: { onEdit: (id: string) => void
                       <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', background: 'var(--color-bg)', padding: '2px 8px', borderRadius: 12, textTransform: 'capitalize' }}>
                         {account.type}
                       </span>
+                    </td>
+                  )}
+
+                  {visibleColumns.has('beds') && (
+                    <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--color-text-secondary)' }}>
+                      {account.beds ? account.beds.toLocaleString() : '—'}
                     </td>
                   )}
                   
@@ -341,6 +369,32 @@ export default function AccountsTable({ onEdit }: { onEdit: (id: string) => void
                           {account.scoredCount}/{account.totalCriteria}
                         </span>
                       </div>
+                    </td>
+                  )}
+                  
+                  {visibleColumns.has('contactName') && (
+                    <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--color-text-secondary)' }}>
+                      {account.contact?.name || '—'}
+                    </td>
+                  )}
+                  {visibleColumns.has('contactRole') && (
+                    <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--color-text-secondary)' }}>
+                      {account.contact?.role || '—'}
+                    </td>
+                  )}
+                  {visibleColumns.has('contactEmail') && (
+                    <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--color-text-secondary)' }}>
+                      {account.contact?.email ? <a href={`mailto:${account.contact.email}`} style={{ color: 'var(--color-interactive)', textDecoration: 'none' }}>{account.contact.email}</a> : '—'}
+                    </td>
+                  )}
+                  {visibleColumns.has('notes') && (
+                    <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--color-text-tertiary)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {account.notes || '—'}
+                    </td>
+                  )}
+                  {visibleColumns.has('createdAt') && (
+                    <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--color-text-tertiary)' }}>
+                      {new Date(account.createdAt).toLocaleDateString()}
                     </td>
                   )}
                   
