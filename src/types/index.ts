@@ -64,6 +64,7 @@ export interface AccountContact {
 
 export interface Account {
   id: string;
+  templateId?: string;
   name: string;
   size: number;                         // primary size / revenue metric
   type: AccountType;

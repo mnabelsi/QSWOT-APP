@@ -106,9 +106,7 @@ export default function BubbleChart({ onBubbleClick }: { onBubbleClick: (id: str
   const scoreRange = maxScore - minScore;
 
   const scored = enrichedAccounts.filter(a => a.scoredCount > 0);
-  const unscored = enrichedAccounts.filter(a => a.scoredCount === 0);
-  const parkingLotHeight = unscored.length > 0 ? 55 : 0;
-  const totalHeight = viewHeight + parkingLotHeight;
+  const totalHeight = viewHeight;
 
   // Collect distinct color field values for palette assignment
   const distinctColorValues = useMemo(() => {
@@ -328,46 +326,6 @@ export default function BubbleChart({ onBubbleClick }: { onBubbleClick: (id: str
           );
         })}
 
-        {/* Unscored parking lot */}
-        {unscored.length > 0 && (
-          <g>
-            <line
-              x1={PADDING.left} y1={viewHeight + 2}
-              x2={PADDING.left + plotW} y2={viewHeight + 2}
-              stroke="var(--color-border)" strokeWidth={1} strokeDasharray="4,3"
-            />
-            <text
-              x={PADDING.left + 2} y={viewHeight + 16}
-              fontSize={9} fontWeight={700}
-              fill="var(--color-text-tertiary)"
-              fontFamily="var(--font-family-sans)"
-              letterSpacing="0.08em"
-            >
-              UNSCORED
-            </text>
-            {unscored.map((account, i) => {
-              const cols = Math.min(unscored.length, 9);
-              const cx = PADDING.left + 30 + (i % cols) * Math.min(70, plotW / cols);
-              const cy = viewHeight + 34;
-              return (
-                <g key={account.id} style={{ cursor: 'pointer' }}
-                  onClick={() => onBubbleClick(account.id)}
-                >
-                  <circle cx={cx} cy={cy} r={7}
-                    fill="none" stroke="var(--color-text-tertiary)"
-                    strokeWidth={1.5} strokeDasharray="3,2"
-                  />
-                  <text x={cx} y={cy + 18} textAnchor="middle"
-                    fontSize={8} fontWeight={500}
-                    fill="var(--color-text-tertiary)" fontFamily="var(--font-family-sans)"
-                  >
-                    {account.name.length > 9 ? account.name.slice(0, 8) + '…' : account.name}
-                  </text>
-                </g>
-              );
-            })}
-          </g>
-        )}
       </svg>
 
       {/* Tooltip */}

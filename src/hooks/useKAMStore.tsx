@@ -54,7 +54,9 @@ export function KAMProvider({ children }: { children: React.ReactNode }) {
   );
 
   const enrichedAccounts = useMemo(
-    () => accounts.map(a => enrichAccount(a, activeTemplate, scores)),
+    () => accounts
+      .filter(a => !a.templateId || a.templateId === activeTemplate.id)
+      .map(a => enrichAccount(a, activeTemplate, scores)),
     [accounts, activeTemplate, scores]
   );
 
@@ -74,12 +76,13 @@ export function KAMProvider({ children }: { children: React.ReactNode }) {
     const id = generateId();
     const newAccount: Account = {
       id,
+      templateId: activeTemplate.id,
       createdAt: new Date().toISOString(),
       ...data,
     };
     setAccounts(prev => [...prev, newAccount]);
     return id;
-  }, [setAccounts]);
+  }, [setAccounts, activeTemplate.id]);
 
   const deleteAccount = useCallback((id: string) => {
     setAccounts(prev => prev.filter(a => a.id !== id));
@@ -101,11 +104,12 @@ export function KAMProvider({ children }: { children: React.ReactNode }) {
     const newAccounts: Account[] = sampleAccounts.map(sa => ({
       ...sa,
       id: generateId(),
+      templateId: activeTemplate.id,
       createdAt: new Date().toISOString(),
     }));
     setAccounts(prev => [...prev, ...newAccounts]);
     addToast('Loaded 10 sample accounts', 'success');
-  }, [setAccounts, addToast]);
+  }, [setAccounts, addToast, activeTemplate.id]);
 
   const setScore = useCallback((accountId: string, criterionId: string, score: number) => {
     // Get old enriched data before change
