@@ -4,9 +4,10 @@ import { useClaudeConfig } from '../hooks/useClaudeConfig';
 
 interface Props {
   onClose: () => void;
+  onSaved?: () => void;
 }
 
-export default function AIConfigModal({ onClose }: Props) {
+export default function AIConfigModal({ onClose, onSaved }: Props) {
   const { config, update } = useClaudeConfig();
   const [apiKey, setApiKey] = useState(config.apiKey);
   const [model, setModel] = useState(config.model);
@@ -30,7 +31,11 @@ export default function AIConfigModal({ onClose }: Props) {
 
   function handleSave() {
     update({ apiKey: apiKey.trim(), model });
-    onClose();
+    if (onSaved) {
+      onSaved();
+    } else {
+      onClose();
+    }
   }
 
   return (

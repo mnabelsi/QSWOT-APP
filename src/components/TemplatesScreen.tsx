@@ -19,6 +19,7 @@ export default function TemplatesScreen() {
   const [showResetDialog, setShowResetDialog] = useState(false);
   const [showAIConfig, setShowAIConfig] = useState(false);
   const [showWizard, setShowWizard] = useState(false);
+  const [configFromWizard, setConfigFromWizard] = useState(false);
 
   const editingTemplate = templates.find(t => t.id === editingId);
 
@@ -74,6 +75,7 @@ export default function TemplatesScreen() {
               if (isConfigured) {
                 setShowWizard(true);
               } else {
+                setConfigFromWizard(true);
                 setShowAIConfig(true);
               }
             }}
@@ -262,7 +264,12 @@ export default function TemplatesScreen() {
 
       {showAIConfig && (
         <AIConfigModal
-          onClose={() => setShowAIConfig(false)}
+          onClose={() => { setShowAIConfig(false); setConfigFromWizard(false); }}
+          onSaved={configFromWizard ? () => {
+            setShowAIConfig(false);
+            setConfigFromWizard(false);
+            setShowWizard(true);
+          } : undefined}
         />
       )}
 

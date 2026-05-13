@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { KAMProvider, useKAMStore } from './hooks/useKAMStore';
+import { ClaudeConfigProvider } from './hooks/useClaudeConfig';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import TopBar from './components/TopBar';
 import PortfolioScreen from './components/PortfolioScreen';
@@ -38,9 +39,11 @@ function AppContent() {
 export default function App() {
   return (
     <ErrorBoundary>
-      <KAMProvider>
-        <AppContent />
-      </KAMProvider>
+      <ClaudeConfigProvider>
+        <KAMProvider>
+          <AppContent />
+        </KAMProvider>
+      </ClaudeConfigProvider>
     </ErrorBoundary>
   );
 }
