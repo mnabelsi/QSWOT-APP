@@ -20,7 +20,7 @@ export default function BenchmarkCards({ benchmarks, selectedScore, onSelect }: 
   const [hoveredScore, setHoveredScore] = useState<number | null>(null);
 
   return (
-    <div style={{ display: 'flex', gap: 8, width: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%' }}>
       {benchmarks.map(bm => {
         const isSelected = selectedScore === bm.score;
         const isHovered = hoveredScore === bm.score;
@@ -32,54 +32,53 @@ export default function BenchmarkCards({ benchmarks, selectedScore, onSelect }: 
             onClick={() => onSelect(bm.score)}
             onMouseEnter={() => setHoveredScore(bm.score)}
             onMouseLeave={() => setHoveredScore(null)}
-            whileTap={{ scale: 0.95 }}
+            whileTap={{ scale: 0.98 }}
             animate={{
-              scale: isSelected ? 1.02 : 1,
               borderColor: isSelected ? colors.border : isHovered ? colors.border + '80' : 'var(--color-border)',
               background: isSelected ? colors.bg : 'var(--color-surface)',
             }}
             transition={{ duration: 0.1 }}
             style={{
-              flex: 1,
+              width: '100%',
               display: 'flex',
-              flexDirection: 'column',
+              flexDirection: 'row',
               alignItems: 'center',
-              gap: 6,
-              padding: '14px 8px',
+              gap: 12,
+              padding: '12px 16px',
               borderRadius: 12,
               border: `2px solid`,
               cursor: 'pointer',
-              minWidth: 0,
               position: 'relative',
+              textAlign: 'left',
             }}
           >
+            <span style={{
+              fontSize: 22,
+              fontWeight: 700,
+              color: isSelected ? colors.text : 'var(--color-text-tertiary)',
+              minWidth: 32,
+              textAlign: 'center',
+              flexShrink: 0,
+            }}>
+              {bm.score > 0 ? `+${bm.score}` : bm.score}
+            </span>
             <span style={{
               fontSize: 13,
               fontWeight: 600,
               color: isSelected ? colors.text : 'var(--color-text-primary)',
-              textAlign: 'center',
-              lineHeight: 1.3,
-              wordBreak: 'normal',
+              lineHeight: 1.4,
             }}>
               {bm.label}
-            </span>
-            <span style={{
-              fontSize: 11,
-              fontWeight: 500,
-              color: isSelected ? colors.text : 'var(--color-text-tertiary)',
-              opacity: 0.8,
-            }}>
-              {bm.score > 0 ? `+${bm.score}` : bm.score}
             </span>
             {isSelected && (
               <motion.div
                 layoutId="selected-indicator"
                 style={{
                   position: 'absolute',
-                  bottom: -2,
-                  left: '25%',
-                  right: '25%',
-                  height: 3,
+                  top: '15%',
+                  bottom: '15%',
+                  left: -2,
+                  width: 3,
                   borderRadius: 2,
                   background: colors.border,
                 }}
