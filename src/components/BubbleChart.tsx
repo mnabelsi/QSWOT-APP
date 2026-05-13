@@ -231,7 +231,7 @@ export default function BubbleChart({ onBubbleClick }: { onBubbleClick: (id: str
         })}
 
         {/* Grid lines */}
-        {[0, 100, 200].map(val => (
+        {[-100, -50, 0, 50, 100, 150, 200, 250, 300].map(val => (
           <g key={`grid-${val}`}>
             <line
               x1={scaleX(val)} y1={PADDING.top} x2={scaleX(val)} y2={PADDING.top + plotH}
