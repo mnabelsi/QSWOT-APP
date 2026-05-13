@@ -6,6 +6,7 @@ const STORAGE_KEY = 'kam-claude-config';
 const DEFAULT: ClaudeConfig = {
   apiKey: '',
   model: 'claude-sonnet-4-6',
+  prompts: { websiteAnalysis: '', fieldSuggestion: '', marketResearch: '' },
 };
 
 function readStorage(): ClaudeConfig {

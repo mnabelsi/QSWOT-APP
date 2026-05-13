@@ -12,6 +12,28 @@ export interface Criterion {
   benchmarks: Benchmark[];
 }
 
+// ─────────────────────────────────────────────────────────────
+// Dynamic account fields
+// ─────────────────────────────────────────────────────────────
+
+export interface AccountFieldDef {
+  id: string;
+  key: string;           // camelCase key used in account.customFields
+  name: string;          // display label
+  type: 'number' | 'text' | 'select';
+  unit?: string;         // e.g. "beds", "K visitors"
+  options?: string[];    // for select type
+}
+
+export interface ChartDisplayConfig {
+  sizeField: string;    // field key for bubble radius (e.g. 'size', 'beds', 'monthlyVisitors')
+  colorField: string;   // field key for bubble color (e.g. 'zone', 'contractStatus', custom key)
+}
+
+// ─────────────────────────────────────────────────────────────
+// Template
+// ─────────────────────────────────────────────────────────────
+
 export interface Template {
   id: string;
   name: string;
@@ -20,7 +42,13 @@ export interface Template {
   createdAt: string;
   attractivenessCriteria: Criterion[];
   capabilityCriteria: Criterion[];
+  accountFields?: AccountFieldDef[];     // custom fields for this template
+  chartConfig?: ChartDisplayConfig;      // how to encode bubbles visually
 }
+
+// ─────────────────────────────────────────────────────────────
+// Account
+// ─────────────────────────────────────────────────────────────
 
 export type AccountType = 'hospital' | 'clinic' | 'surgical_center' | 'university_hospital' | 'distributor' | 'gpo' | 'other' | (string & {});
 export type Ownership = 'public' | 'private' | 'mixed' | (string & {});
@@ -37,16 +65,17 @@ export interface AccountContact {
 export interface Account {
   id: string;
   name: string;
-  size: number;                        // Revenue in €
+  size: number;                         // primary size / revenue metric
   type: AccountType;
-  territory?: string;                  // Region / area
+  territory?: string;
   ownership?: Ownership;
-  beds?: number;                       // Number of beds (hospitals)
-  therapeuticAreas?: string[];         // e.g. ["Cardiology", "Oncology"]
+  beds?: number;
+  therapeuticAreas?: string[];
   contact?: AccountContact;
   contractStatus?: ContractStatus;
   strategicPriority?: StrategicPriority;
   notes?: string;
+  customFields?: Record<string, string | number>;  // dynamic per-template fields
   createdAt: string;
   lastScoredAt?: string;
 }

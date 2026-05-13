@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import type { EnrichedAccount } from '../types';
 import { useKAMStore } from '../hooks/useKAMStore';
@@ -13,12 +13,6 @@ const cellColors: string[][] = [
   ['#f0cbcb', '#fbe0dc', '#fef3cd'],
 ];
 
-const bubbleColors = {
-  green: '#4a8c1c',
-  yellow: '#c48a0a',
-  red: '#c03030',
-};
-
 const zoneLabels = [
   { text: 'Protect', x: 2, y: 0, color: '#3a7014' },
   { text: 'Invest', x: 1, y: 0, color: '#6a8c30' },
@@ -31,16 +25,76 @@ const zoneLabels = [
   { text: 'Harvest', x: 2, y: 2, color: '#a06040' },
 ];
 
+// ─────────────────────────────────────────────────────────────
+// Color logic
+// ─────────────────────────────────────────────────────────────
+
+const FIXED_COLOR_MAPS: Record<string, Record<string, string>> = {
+  zone: { green: '#4a8c1c', yellow: '#c48a0a', red: '#c03030' },
+  contractStatus: { active: '#00b894', expiring: '#fdcb6e', expired: '#e17055', prospect: '#6c5ce7', none: '#b2bec3' },
+  strategicPriority: { high: '#d63031', medium: '#e17055', low: '#74b9ff' },
+  ownership: { public: '#0984e3', private: '#6c5ce7', mixed: '#00b894' },
+  type: {
+    hospital: '#0984e3', clinic: '#00b894', surgical_center: '#6c5ce7',
+    university_hospital: '#e17055', distributor: '#fdcb6e', gpo: '#fd79a8', other: '#b2bec3',
+  },
+};
+
+const PALETTE = ['#6c5ce7', '#0984e3', '#00b894', '#e17055', '#fdcb6e', '#e84393', '#a29bfe', '#55efc4'];
+
+function getColorFieldValue(account: EnrichedAccount, field: string): string {
+  if (field === 'zone') return account.zone ?? '';
+  if (field === 'contractStatus') return account.contractStatus ?? '';
+  if (field === 'strategicPriority') return account.strategicPriority ?? '';
+  if (field === 'type') return account.type ?? '';
+  if (field === 'ownership') return account.ownership ?? '';
+  return String(account.customFields?.[field] ?? '');
+}
+
+function getAccountColor(account: EnrichedAccount, field: string, distinctValues: string[]): string {
+  const fixedMap = FIXED_COLOR_MAPS[field];
+  if (fixedMap) {
+    const val = getColorFieldValue(account, field);
+    return fixedMap[val] ?? '#b2bec3';
+  }
+  const val = getColorFieldValue(account, field);
+  const idx = distinctValues.indexOf(val);
+  return idx >= 0 ? PALETTE[idx % PALETTE.length] : '#b2bec3';
+}
+
+function getAccountSizeValue(account: EnrichedAccount, field: string): number {
+  if (field === 'size') return account.size;
+  if (field === 'beds') return account.beds ?? 0;
+  const cv = account.customFields?.[field];
+  if (typeof cv === 'number') return cv;
+  if (typeof cv === 'string') return parseFloat(cv) || 0;
+  return 0;
+}
+
+function getSizeFieldLabel(field: string, template: { accountFields?: { key: string; name: string; unit?: string }[] }): string {
+  if (field === 'size') return 'Revenue';
+  const def = template.accountFields?.find(f => f.key === field);
+  if (def) return `${def.name}${def.unit ? ` (${def.unit})` : ''}`;
+  return field;
+}
+
+// ─────────────────────────────────────────────────────────────
+
 interface TooltipData {
   account: EnrichedAccount;
   svgX: number;
   svgY: number;
 }
 
+const DEFAULT_CHART_CONFIG = { sizeField: 'size', colorField: 'zone' };
+
 export default function BubbleChart({ onBubbleClick }: { onBubbleClick: (id: string) => void }) {
-  const { enrichedAccounts } = useKAMStore();
+  const { enrichedAccounts, activeTemplate } = useKAMStore();
   const [tooltip, setTooltip] = useState<TooltipData | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const chartConfig = activeTemplate.chartConfig ?? DEFAULT_CHART_CONFIG;
+  const { sizeField, colorField } = chartConfig;
 
   const viewWidth = 700;
   const viewHeight = 380;
@@ -56,6 +110,16 @@ export default function BubbleChart({ onBubbleClick }: { onBubbleClick: (id: str
   const parkingLotHeight = unscored.length > 0 ? 55 : 0;
   const totalHeight = viewHeight + parkingLotHeight;
 
+  // Collect distinct color field values for palette assignment
+  const distinctColorValues = useMemo(() => {
+    const vals = new Set<string>();
+    for (const acc of enrichedAccounts) {
+      const val = getColorFieldValue(acc, colorField);
+      if (val) vals.add(val);
+    }
+    return Array.from(vals).sort();
+  }, [enrichedAccounts, colorField]);
+
   const scaleX = (val: number) => {
     const clamped = Math.max(minScore, Math.min(maxScore, val));
     return PADDING.left + ((clamped - minScore) / scoreRange) * plotW;
@@ -66,51 +130,59 @@ export default function BubbleChart({ onBubbleClick }: { onBubbleClick: (id: str
     return PADDING.top + plotH - ((clamped - minScore) / scoreRange) * plotH;
   };
 
-  const getBubbleRadius = (size: number | string) => {
+  const getBubbleRadius = (account: EnrichedAccount) => {
     const minR = 6;
     const maxR = 45;
-    // Filter out NaN or corrupted string values from older localstorage
-    const sizes = enrichedAccounts.map(a => Number(a.size)).filter(s => !isNaN(s));
+    const sizes = enrichedAccounts.map(a => getAccountSizeValue(a, sizeField)).filter(s => !isNaN(s));
     if (sizes.length === 0) return minR;
-    
     const maxSize = Math.max(...sizes, 1);
     const minSize = Math.min(...sizes, 0);
-    
     if (maxSize === minSize) return (minR + maxR) / 2;
-    
-    const validSize = isNaN(Number(size)) ? minSize : Number(size);
+    const val = getAccountSizeValue(account, sizeField);
     const sqrtMin = Math.sqrt(minSize);
     const sqrtMax = Math.sqrt(maxSize);
-    const sqrtVal = Math.sqrt(validSize);
-    
+    const sqrtVal = Math.sqrt(Math.max(0, val));
     const normalized = (sqrtVal - sqrtMin) / (sqrtMax - sqrtMin);
-    // Explicit NaN fallback just in case
     return isNaN(normalized) ? minR : minR + normalized * (maxR - minR);
   };
 
+  // Legend items
+  const legendItems = useMemo(() => {
+    const fixedMap = FIXED_COLOR_MAPS[colorField];
+    if (fixedMap) {
+      return distinctColorValues
+        .filter(v => fixedMap[v])
+        .map(v => ({ label: v.replace(/_/g, ' '), color: fixedMap[v] }));
+    }
+    return distinctColorValues.map((v, i) => ({
+      label: v.replace(/_/g, ' '),
+      color: PALETTE[i % PALETTE.length],
+    }));
+  }, [colorField, distinctColorValues]);
+
+  const sizeLabel = getSizeFieldLabel(sizeField, activeTemplate);
+
   return (
     <div ref={containerRef} style={{ position: 'relative', width: '100%' }}>
-      
+
       {/* Legend */}
       <div style={{
         position: 'absolute', top: 12, right: 16, zIndex: 10,
-        display: 'flex', gap: 12, fontSize: 10, fontWeight: 600,
+        display: 'flex', flexWrap: 'wrap', gap: 8, fontSize: 10, fontWeight: 600,
         background: 'var(--color-surface)', padding: '6px 10px',
         borderRadius: 8, border: '1px solid var(--color-border)',
-        boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+        boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
+        maxWidth: 220,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <div style={{ width: 8, height: 8, borderRadius: 4, background: bubbleColors.green }} />
-          <span style={{ color: 'var(--color-text-secondary)' }}>Top Priority</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <div style={{ width: 8, height: 8, borderRadius: 4, background: bubbleColors.yellow }} />
-          <span style={{ color: 'var(--color-text-secondary)' }}>Review / Monitor</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <div style={{ width: 8, height: 8, borderRadius: 4, background: bubbleColors.red }} />
-          <span style={{ color: 'var(--color-text-secondary)' }}>Low Priority</span>
-        </div>
+        {legendItems.slice(0, 7).map(item => (
+          <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <div style={{ width: 8, height: 8, borderRadius: 4, background: item.color, flexShrink: 0 }} />
+            <span style={{ color: 'var(--color-text-secondary)', textTransform: 'capitalize' }}>{item.label}</span>
+          </div>
+        ))}
+        {legendItems.length === 0 && (
+          <span style={{ color: 'var(--color-text-tertiary)', fontSize: 10 }}>No data</span>
+        )}
       </div>
 
       <svg
@@ -146,8 +218,7 @@ export default function BubbleChart({ onBubbleClick }: { onBubbleClick: (id: str
               x={PADDING.left + zl.x * cellW + cellW / 2}
               y={PADDING.top + zl.y * cellH + cellH - 8}
               textAnchor="middle"
-              fontSize={9}
-              fontWeight={600}
+              fontSize={9} fontWeight={600}
               fill={zl.color}
               fontFamily="var(--font-family-sans)"
               opacity={0.5}
@@ -208,8 +279,10 @@ export default function BubbleChart({ onBubbleClick }: { onBubbleClick: (id: str
         {scored.map(account => {
           const cx = scaleX(account.attractivenessScore);
           const cy = scaleY(account.capabilityScore);
-          const r = getBubbleRadius(account.size);
+          const r = getBubbleRadius(account);
           const stale = isStale(account);
+          const color = getAccountColor(account, colorField, distinctColorValues);
+          const sizeVal = getAccountSizeValue(account, sizeField);
 
           return (
             <g key={account.id} style={{ cursor: 'pointer' }}
@@ -217,23 +290,18 @@ export default function BubbleChart({ onBubbleClick }: { onBubbleClick: (id: str
               onMouseEnter={() => setTooltip({ account, svgX: cx, svgY: cy })}
               onMouseLeave={() => setTooltip(null)}
             >
-              {/* Shadow */}
               <motion.circle cx={cx} cy={cy} r={r + 1} fill="rgba(0,0,0,0.08)" initial={false} animate={{ cx, cy }} transition={{ duration: 0.4 }} />
-              
-              {/* Bubble */}
               <motion.circle
                 cx={cx} cy={cy} r={r}
-                fill={bubbleColors[account.zone] || bubbleColors.yellow}
+                fill={color}
                 fillOpacity={stale ? 0.35 : 0.7}
-                stroke={bubbleColors[account.zone] || bubbleColors.yellow}
+                stroke={color}
                 strokeWidth={2}
                 strokeOpacity={stale ? 0.3 : 0.9}
                 initial={false}
                 animate={{ cx, cy }}
                 transition={{ duration: 0.4 }}
               />
-              
-              {/* Name label perfectly centered ON the bubble */}
               <text
                 x={cx} y={r >= 14 ? cy - 1 : cy + 3}
                 textAnchor="middle"
@@ -245,8 +313,6 @@ export default function BubbleChart({ onBubbleClick }: { onBubbleClick: (id: str
               >
                 {account.name || 'Unnamed Account'}
               </text>
-              
-              {/* Size label inside bubble (only if bubble is big enough) */}
               {r >= 14 && (
                 <text
                   x={cx} y={cy + 9}
@@ -255,7 +321,7 @@ export default function BubbleChart({ onBubbleClick }: { onBubbleClick: (id: str
                   opacity={stale ? 0.5 : 0.9}
                   style={{ pointerEvents: 'none', textShadow: '0 1px 2px rgba(0,0,0,0.5), 0 0 4px rgba(0,0,0,0.3)', transition: 'all 0.4s ease-out' }}
                 >
-                  {formatCurrency(account.size)}
+                  {sizeField === 'size' ? formatCurrency(sizeVal) : sizeVal.toLocaleString()}
                 </text>
               )}
             </g>
@@ -310,6 +376,7 @@ export default function BubbleChart({ onBubbleClick }: { onBubbleClick: (id: str
         const svgScale = rect.width / viewWidth;
         const tipX = tooltip.svgX * svgScale;
         const tipY = tooltip.svgY * svgScale;
+        const sizeVal = getAccountSizeValue(tooltip.account, sizeField);
         return (
           <div
             style={{
@@ -338,8 +405,10 @@ export default function BubbleChart({ onBubbleClick }: { onBubbleClick: (id: str
               <span style={{ color: '#80b8e8', fontWeight: 600 }}>{tooltip.account.capabilityScore.toFixed(0)}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: 'rgba(255,255,255,0.6)' }}>Size</span>
-              <span style={{ fontWeight: 600 }}>{formatCurrency(tooltip.account.size)}</span>
+              <span style={{ color: 'rgba(255,255,255,0.6)' }}>{sizeLabel}</span>
+              <span style={{ fontWeight: 600 }}>
+                {sizeField === 'size' ? formatCurrency(sizeVal) : sizeVal.toLocaleString()}
+              </span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span style={{ color: 'rgba(255,255,255,0.6)' }}>Scored</span>

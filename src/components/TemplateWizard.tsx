@@ -4,12 +4,15 @@ import { useClaudeConfig } from '../hooks/useClaudeConfig';
 import {
   analyzeCompanyWebsite,
   researchPotentialAccounts,
+  suggestAccountFields,
   type TemplateAnalysis,
   type SuggestedAccount,
+  type FieldSuggestion,
 } from '../lib/claude';
 import type {
   Template, Criterion, Account,
   AccountType, Ownership, ContractStatus, StrategicPriority,
+  AccountFieldDef, ChartDisplayConfig,
 } from '../types';
 import { generateId } from '../lib/ids';
 
@@ -17,7 +20,7 @@ import { generateId } from '../lib/ids';
 // Local editing types
 // ─────────────────────────────────────────────────────────────
 
-type WizardStep = 'input' | 'template' | 'accounts' | 'done';
+type WizardStep = 'input' | 'template' | 'fields' | 'accounts' | 'done';
 
 interface LocalCriterion {
   id: string;
@@ -25,6 +28,16 @@ interface LocalCriterion {
   unit: string;
   weightPct: number;
   benchmarks: { score: number; label: string }[];
+}
+
+interface LocalField {
+  id: string;
+  key: string;
+  name: string;
+  type: 'number' | 'text' | 'select';
+  unit?: string;
+  options?: string[];
+  enabled: boolean;
 }
 
 interface LocalAccount {
@@ -40,6 +53,7 @@ interface LocalAccount {
   strategicPriority: string;
   zone: string;
   notes: string;
+  customFields: Record<string, string>;
 }
 
 interface Props {
@@ -72,7 +86,24 @@ function localToKAMCriterion(c: LocalCriterion, sortOrder: number): Criterion {
   };
 }
 
+function fieldSuggestionToLocalField(f: FieldSuggestion): LocalField {
+  return {
+    id: generateId(),
+    key: f.key,
+    name: f.name,
+    type: f.type,
+    unit: f.unit,
+    options: f.options,
+    enabled: true,
+  };
+}
+
 function toLocalAccount(a: SuggestedAccount, idx: number): LocalAccount {
+  const rawCustom = a.customFields ?? {};
+  const customFields: Record<string, string> = {};
+  for (const [k, v] of Object.entries(rawCustom)) {
+    customFields[k] = String(v);
+  }
   return {
     idx,
     selected: true,
@@ -86,7 +117,25 @@ function toLocalAccount(a: SuggestedAccount, idx: number): LocalAccount {
     strategicPriority: a.strategicPriority ?? 'medium',
     zone: a.zone ?? 'yellow',
     notes: a.notes ?? '',
+    customFields,
   };
+}
+
+function convertCustomFields(
+  rawFields: Record<string, string>,
+  fieldDefs: LocalField[],
+): Record<string, string | number> {
+  const result: Record<string, string | number> = {};
+  for (const [key, val] of Object.entries(rawFields)) {
+    const def = fieldDefs.find(f => f.key === key);
+    if (def?.type === 'number') {
+      const n = Number(val);
+      result[key] = isNaN(n) ? 0 : n;
+    } else {
+      result[key] = val;
+    }
+  }
+  return result;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -113,10 +162,11 @@ function Spinner() {
 // Step progress indicator
 // ─────────────────────────────────────────────────────────────
 
-const STEP_LABELS = ['Website', 'Template', 'Research', 'Done'];
+const STEP_LABELS = ['Website', 'Template', 'Fields', 'Research', 'Done'];
+const STEP_INDEX: Record<WizardStep, number> = { input: 0, template: 1, fields: 2, accounts: 3, done: 4 };
 
 function WizardProgress({ step }: { step: WizardStep }) {
-  const activeIdx = { input: 0, template: 1, accounts: 2, done: 3 }[step];
+  const activeIdx = STEP_INDEX[step];
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start', marginBottom: 28 }}>
       {STEP_LABELS.map((label, i) => (
@@ -177,7 +227,6 @@ function CriterionCard({
       border: '1px solid var(--color-border)',
       padding: '11px 13px', marginBottom: 8,
     }}>
-      {/* Name row */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 8, alignItems: 'center' }}>
         <input
           value={criterion.name}
@@ -194,7 +243,6 @@ function CriterionCard({
         </button>
       </div>
 
-      {/* Unit + Weight row */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
         <div style={{ flex: 1 }}>
           <div style={microLabel}>Unit</div>
@@ -217,7 +265,6 @@ function CriterionCard({
         </div>
       </div>
 
-      {/* Benchmarks row */}
       <div>
         <div style={{ ...microLabel, marginBottom: 5 }}>Benchmarks</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 4 }}>
@@ -328,7 +375,193 @@ function CriteriaPanel({
 }
 
 // ─────────────────────────────────────────────────────────────
-// Zone select cell
+// Field card
+// ─────────────────────────────────────────────────────────────
+
+const TYPE_COLORS: Record<string, string> = {
+  number: '#0984e3',
+  text: '#00b894',
+  select: '#6c5ce7',
+};
+
+function FieldCard({
+  field,
+  onChange,
+  onDelete,
+}: {
+  field: LocalField;
+  onChange: (updated: LocalField) => void;
+  onDelete: () => void;
+}) {
+  const update = (patch: Partial<LocalField>) => onChange({ ...field, ...patch });
+
+  return (
+    <div style={{
+      background: 'var(--color-bg)', borderRadius: 10,
+      border: `1px solid ${field.enabled ? 'var(--color-border)' : 'var(--color-border)'}`,
+      padding: '11px 13px', marginBottom: 8,
+      opacity: field.enabled ? 1 : 0.45,
+      transition: 'opacity 150ms',
+    }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: field.enabled ? 10 : 0 }}>
+        {/* Enable toggle */}
+        <input
+          type="checkbox"
+          checked={field.enabled}
+          onChange={e => update({ enabled: e.target.checked })}
+          style={{ cursor: 'pointer', width: 14, height: 14, flexShrink: 0 }}
+        />
+
+        {/* Type badge */}
+        <span style={{
+          fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4,
+          background: TYPE_COLORS[field.type] + '20',
+          color: TYPE_COLORS[field.type],
+          letterSpacing: '0.05em', textTransform: 'uppercase',
+          flexShrink: 0,
+        }}>
+          {field.type}
+        </span>
+
+        {/* Name */}
+        <input
+          value={field.name}
+          onChange={e => update({ name: e.target.value })}
+          placeholder="Field name"
+          disabled={!field.enabled}
+          style={{ ...cellInput, flex: 1, fontSize: 12, fontWeight: 600 }}
+        />
+
+        {/* Key chip */}
+        <span style={{
+          fontSize: 10, fontFamily: 'monospace', color: 'var(--color-text-tertiary)',
+          background: 'var(--color-border)', padding: '2px 6px', borderRadius: 4,
+          whiteSpace: 'nowrap', flexShrink: 0,
+        }}>
+          {field.key}
+        </span>
+
+        <button
+          onClick={onDelete}
+          title="Remove"
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-tertiary)', fontSize: 16, lineHeight: 1, flexShrink: 0, padding: '0 2px' }}
+        >
+          ×
+        </button>
+      </div>
+
+      {field.enabled && (
+        <div style={{ display: 'flex', gap: 8, paddingLeft: 22 }}>
+          {field.type === 'number' && (
+            <div style={{ flex: 1 }}>
+              <div style={microLabel}>Unit</div>
+              <input
+                value={field.unit ?? ''}
+                onChange={e => update({ unit: e.target.value })}
+                placeholder="e.g. beds, K€, visitors/mo"
+                style={cellInput}
+              />
+            </div>
+          )}
+          {field.type === 'select' && (
+            <div style={{ flex: 1 }}>
+              <div style={microLabel}>Options (comma-separated)</div>
+              <input
+                value={(field.options ?? []).join(', ')}
+                onChange={e => update({ options: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
+                placeholder="e.g. Small, Medium, Large"
+                style={cellInput}
+              />
+            </div>
+          )}
+          {field.type === 'text' && (
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: 11, color: 'var(--color-text-tertiary)', margin: 0 }}>Free-text input field.</p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Chart config panel
+// ─────────────────────────────────────────────────────────────
+
+const STANDARD_SIZE_OPTIONS = [{ key: 'size', label: 'Revenue (K€)' }];
+const STANDARD_COLOR_OPTIONS = [
+  { key: 'zone', label: 'Performance Zone' },
+  { key: 'contractStatus', label: 'Contract Status' },
+  { key: 'strategicPriority', label: 'Strategic Priority' },
+  { key: 'type', label: 'Account Type' },
+  { key: 'ownership', label: 'Ownership' },
+];
+
+function ChartConfigPanel({
+  fields,
+  sizeField,
+  colorField,
+  onSizeChange,
+  onColorChange,
+}: {
+  fields: LocalField[];
+  sizeField: string;
+  colorField: string;
+  onSizeChange: (key: string) => void;
+  onColorChange: (key: string) => void;
+}) {
+  const numericFields = fields.filter(f => f.enabled && f.type === 'number');
+  const categoricalFields = fields.filter(f => f.enabled && (f.type === 'select' || f.type === 'text'));
+
+  return (
+    <div style={{
+      marginTop: 24, padding: '14px 16px', borderRadius: 10,
+      background: 'rgba(108,92,231,0.04)', border: '1px solid rgba(108,92,231,0.15)',
+    }}>
+      <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 12, color: 'var(--color-text-primary)' }}>
+        Portfolio Chart Configuration
+      </div>
+      <div style={{ display: 'flex', gap: 16 }}>
+        <div style={{ flex: 1 }}>
+          <div style={microLabel}>Bubble Size represents</div>
+          <select
+            value={sizeField}
+            onChange={e => onSizeChange(e.target.value)}
+            style={{ ...cellInput, fontSize: 12 }}
+          >
+            {STANDARD_SIZE_OPTIONS.map(o => (
+              <option key={o.key} value={o.key}>{o.label}</option>
+            ))}
+            {numericFields.map(f => (
+              <option key={f.key} value={f.key}>
+                {f.name}{f.unit ? ` (${f.unit})` : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={microLabel}>Bubble Color represents</div>
+          <select
+            value={colorField}
+            onChange={e => onColorChange(e.target.value)}
+            style={{ ...cellInput, fontSize: 12 }}
+          >
+            {STANDARD_COLOR_OPTIONS.map(o => (
+              <option key={o.key} value={o.key}>{o.label}</option>
+            ))}
+            {categoricalFields.map(f => (
+              <option key={f.key} value={f.key}>{f.name}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Zone select cell color map
 // ─────────────────────────────────────────────────────────────
 
 const ZONE_COLORS: Record<string, string> = {
@@ -345,7 +578,6 @@ export default function TemplateWizard({ onClose, onTemplateCreated }: Props) {
   const { config } = useClaudeConfig();
   const { addTemplate, addAccount } = useKAMStore();
 
-  // Step state
   const [step, setStep] = useState<WizardStep>('input');
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -359,6 +591,11 @@ export default function TemplateWizard({ onClose, onTemplateCreated }: Props) {
   const [templateName, setTemplateName] = useState('');
   const [attractCriteria, setAttractCriteria] = useState<LocalCriterion[]>([]);
   const [capabCriteria, setCapabCriteria] = useState<LocalCriterion[]>([]);
+
+  // Fields step
+  const [fields, setFields] = useState<LocalField[]>([]);
+  const [chartSizeField, setChartSizeField] = useState('size');
+  const [chartColorField, setChartColorField] = useState('zone');
 
   // Accounts step
   const [accounts, setAccounts] = useState<LocalAccount[]>([]);
@@ -383,17 +620,51 @@ export default function TemplateWizard({ onClose, onTemplateCreated }: Props) {
     }
   }
 
-  // ── Step 2 → 3: Research accounts
+  // ── Step 2 → 3: Discover fields
+  async function handleContinueToFields() {
+    if (!analysis) return;
+    setLoading('fields');
+    setError(null);
+    try {
+      const suggestions = await suggestAccountFields(
+        config,
+        analysis.companyName,
+        analysis.industry,
+        analysis.summary,
+      );
+      setFields(suggestions.map(fieldSuggestionToLocalField));
+      setChartSizeField('size');
+      setChartColorField('zone');
+      setStep('fields');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(null);
+    }
+  }
+
+  // ── Step 3 → 4: Research accounts
   async function handleResearch() {
     if (!analysis) return;
     setLoading('researching');
     setError(null);
     try {
+      const enabledFields = fields.filter(f => f.enabled);
+      const customFieldDefs: AccountFieldDef[] = enabledFields.map(f => ({
+        id: f.id,
+        key: f.key,
+        name: f.name,
+        type: f.type,
+        unit: f.unit,
+        options: f.options,
+      }));
       const results = await researchPotentialAccounts(
         config,
         analysis.companyName,
         analysis.industry,
         territory,
+        analysis.summary,
+        customFieldDefs.length > 0 ? customFieldDefs : undefined,
       );
       setAccounts(results.map(toLocalAccount));
       setStep('accounts');
@@ -404,9 +675,23 @@ export default function TemplateWizard({ onClose, onTemplateCreated }: Props) {
     }
   }
 
-  // ── Step 3 → 4: Create template + import accounts
+  // ── Step 4 → 5: Create template + import accounts
   function handleImport() {
     setLoading('importing');
+
+    const enabledFields = fields.filter(f => f.enabled);
+    const accountFields: AccountFieldDef[] = enabledFields.map(f => ({
+      id: f.id,
+      key: f.key,
+      name: f.name,
+      type: f.type,
+      unit: f.unit,
+      options: f.options,
+    }));
+    const chartConfig: ChartDisplayConfig = {
+      sizeField: chartSizeField,
+      colorField: chartColorField,
+    };
 
     const template: Template = {
       id: generateId(),
@@ -416,6 +701,8 @@ export default function TemplateWizard({ onClose, onTemplateCreated }: Props) {
       createdAt: new Date().toISOString(),
       attractivenessCriteria: attractCriteria.map(localToKAMCriterion),
       capabilityCriteria: capabCriteria.map(localToKAMCriterion),
+      accountFields,
+      chartConfig,
     };
     addTemplate(template);
     setCreatedTemplateId(template.id);
@@ -432,6 +719,7 @@ export default function TemplateWizard({ onClose, onTemplateCreated }: Props) {
         territory: a.territory || undefined,
         beds: a.beds ? Number(a.beds) : undefined,
         notes: a.notes ? `[AI Zone: ${a.zone}] ${a.notes}` : `[AI Zone: ${a.zone}]`,
+        customFields: convertCustomFields(a.customFields, enabledFields),
       };
       addAccount(accountData);
     }
@@ -444,8 +732,15 @@ export default function TemplateWizard({ onClose, onTemplateCreated }: Props) {
     setAccounts(prev => prev.map(a => a.idx === idx ? { ...a, ...patch } : a));
   }
 
+  function updateAccountCustomField(idx: number, key: string, value: string) {
+    setAccounts(prev => prev.map(a =>
+      a.idx === idx ? { ...a, customFields: { ...a.customFields, [key]: value } } : a,
+    ));
+  }
+
   const selectedCount = accounts.filter(a => a.selected).length;
-  const isWideStep = step === 'template';
+  const enabledFields = fields.filter(f => f.enabled);
+  const isWideStep = step === 'template' || step === 'accounts';
 
   return (
     <div
@@ -475,7 +770,7 @@ export default function TemplateWizard({ onClose, onTemplateCreated }: Props) {
               AI Template Wizard
             </h2>
             <p style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>
-              Analyze your company website, generate a tailored KAM template, and discover top accounts.
+              Analyze your company, generate a tailored KAM template, discover fields, and find top accounts.
             </p>
           </div>
           <button
@@ -521,7 +816,7 @@ export default function TemplateWizard({ onClose, onTemplateCreated }: Props) {
                 style={fieldInput}
               />
               <p style={{ fontSize: 11, color: 'var(--color-text-tertiary)', marginTop: 5 }}>
-                Claude will visit and analyze this URL to tailor scoring criteria to your industry.
+                Claude will analyze this URL to tailor scoring criteria to your industry.
               </p>
             </div>
             <div style={{ marginBottom: 28 }}>
@@ -554,7 +849,6 @@ export default function TemplateWizard({ onClose, onTemplateCreated }: Props) {
         {/* ═══════════════ STEP: TEMPLATE ═══════════════ */}
         {step === 'template' && analysis && (
           <div>
-            {/* Company info chip */}
             <div style={{
               display: 'flex', alignItems: 'center', gap: 16,
               padding: '10px 14px', borderRadius: 8, marginBottom: 20,
@@ -569,17 +863,11 @@ export default function TemplateWizard({ onClose, onTemplateCreated }: Props) {
               </div>
             </div>
 
-            {/* Template name */}
             <div style={{ marginBottom: 20 }}>
               <label style={fieldLabel}>Template Name</label>
-              <input
-                value={templateName}
-                onChange={e => setTemplateName(e.target.value)}
-                style={fieldInput}
-              />
+              <input value={templateName} onChange={e => setTemplateName(e.target.value)} style={fieldInput} />
             </div>
 
-            {/* Two-column criteria editor */}
             <div style={{ display: 'flex', gap: 20, marginBottom: 24 }}>
               <CriteriaPanel
                 label="Opportunity Attractiveness"
@@ -598,6 +886,79 @@ export default function TemplateWizard({ onClose, onTemplateCreated }: Props) {
 
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
               <button onClick={() => setStep('input')} style={ghostBtn}>← Back</button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={onClose} style={ghostBtn}>Cancel</button>
+                <button
+                  onClick={handleContinueToFields}
+                  disabled={!!loading}
+                  style={{ ...primaryBtn, opacity: !!loading ? 0.6 : 1, cursor: !!loading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
+                >
+                  {loading === 'fields' ? <><Spinner /> Discovering fields…</> : 'Continue to Fields →'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ═══════════════ STEP: FIELDS ═══════════════ */}
+        {step === 'fields' && (
+          <div>
+            <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 16, lineHeight: 1.6 }}>
+              Claude has suggested these custom fields for <strong>{analysis?.industry}</strong> KAM analysis.
+              Enable the ones you want to track, customize labels or options, then click Research Market.
+            </p>
+
+            {/* Field cards */}
+            <div style={{ marginBottom: 4 }}>
+              {fields.map((f, i) => (
+                <FieldCard
+                  key={f.id}
+                  field={f}
+                  onChange={updated => {
+                    const next = [...fields];
+                    next[i] = updated;
+                    setFields(next);
+                  }}
+                  onDelete={() => setFields(fields.filter((_, j) => j !== i))}
+                />
+              ))}
+              {fields.length === 0 && (
+                <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--color-text-tertiary)', fontSize: 12 }}>
+                  No custom fields suggested — research will use standard fields only.
+                </div>
+              )}
+            </div>
+
+            {/* Add custom field */}
+            <button
+              onClick={() => setFields(prev => [...prev, {
+                id: generateId(),
+                key: `customField${prev.length + 1}`,
+                name: 'New field',
+                type: 'text',
+                enabled: true,
+              }])}
+              style={{
+                padding: '6px 14px', borderRadius: 7, fontSize: 11, fontWeight: 600,
+                color: 'var(--color-interactive)', background: 'rgba(108,92,231,0.08)',
+                border: '1px dashed rgba(108,92,231,0.3)', cursor: 'pointer',
+                marginBottom: 4,
+              }}
+            >
+              + Add custom field
+            </button>
+
+            {/* Chart config */}
+            <ChartConfigPanel
+              fields={fields}
+              sizeField={chartSizeField}
+              colorField={chartColorField}
+              onSizeChange={setChartSizeField}
+              onColorChange={setChartColorField}
+            />
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 24 }}>
+              <button onClick={() => setStep('template')} style={ghostBtn}>← Back</button>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button onClick={onClose} style={ghostBtn}>Cancel</button>
                 <button
@@ -628,7 +989,9 @@ export default function TemplateWizard({ onClose, onTemplateCreated }: Props) {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
                 <thead>
                   <tr style={{ background: 'var(--color-bg)', borderBottom: '1px solid var(--color-border)' }}>
-                    {['', 'Name', 'Size (K€)', 'Type', 'Beds', 'Territory', 'Ownership', 'Contract', 'Priority', 'Perf. Zone'].map((h, i) => (
+                    {['', 'Name', 'Size (K€)', 'Type', 'Beds', 'Territory', 'Ownership', 'Contract', 'Priority', 'Perf. Zone',
+                      ...enabledFields.map(f => f.name),
+                    ].map((h, i) => (
                       <th
                         key={i}
                         style={{
@@ -654,7 +1017,6 @@ export default function TemplateWizard({ onClose, onTemplateCreated }: Props) {
                         transition: 'opacity 120ms',
                       }}
                     >
-                      {/* Checkbox */}
                       <td style={{ padding: '5px 8px' }}>
                         <input
                           type="checkbox"
@@ -663,85 +1025,72 @@ export default function TemplateWizard({ onClose, onTemplateCreated }: Props) {
                           style={{ cursor: 'pointer' }}
                         />
                       </td>
-                      {/* Name */}
                       <td style={{ padding: '4px 5px', minWidth: 150 }}>
-                        <input
-                          value={a.name}
-                          onChange={e => updateAccount(a.idx, { name: e.target.value })}
-                          style={tblInput}
-                        />
+                        <input value={a.name} onChange={e => updateAccount(a.idx, { name: e.target.value })} style={tblInput} />
                       </td>
-                      {/* Size */}
                       <td style={{ padding: '4px 5px', width: 80 }}>
-                        <input
-                          type="number"
-                          value={a.size}
-                          onChange={e => updateAccount(a.idx, { size: e.target.value })}
-                          style={tblInput}
-                        />
+                        <input type="number" value={a.size} onChange={e => updateAccount(a.idx, { size: e.target.value })} style={tblInput} />
                       </td>
-                      {/* Type */}
                       <td style={{ padding: '4px 5px', width: 120 }}>
-                        <select
-                          value={a.type}
-                          onChange={e => updateAccount(a.idx, { type: e.target.value })}
-                          style={tblSelect}
-                        >
+                        <select value={a.type} onChange={e => updateAccount(a.idx, { type: e.target.value })} style={tblSelect}>
                           {['hospital', 'clinic', 'surgical_center', 'university_hospital', 'distributor', 'gpo', 'other'].map(t => (
                             <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>
                           ))}
                         </select>
                       </td>
-                      {/* Beds */}
                       <td style={{ padding: '4px 5px', width: 70 }}>
-                        <input
-                          type="number"
-                          value={a.beds}
-                          onChange={e => updateAccount(a.idx, { beds: e.target.value })}
-                          placeholder="—"
-                          style={tblInput}
-                        />
+                        <input type="number" value={a.beds} onChange={e => updateAccount(a.idx, { beds: e.target.value })} placeholder="—" style={tblInput} />
                       </td>
-                      {/* Territory */}
                       <td style={{ padding: '4px 5px', minWidth: 110 }}>
-                        <input
-                          value={a.territory}
-                          onChange={e => updateAccount(a.idx, { territory: e.target.value })}
-                          style={tblInput}
-                        />
+                        <input value={a.territory} onChange={e => updateAccount(a.idx, { territory: e.target.value })} style={tblInput} />
                       </td>
-                      {/* Ownership */}
                       <td style={{ padding: '4px 5px', width: 90 }}>
                         <select value={a.ownership} onChange={e => updateAccount(a.idx, { ownership: e.target.value })} style={tblSelect}>
                           {['public', 'private', 'mixed'].map(o => <option key={o} value={o}>{o}</option>)}
                         </select>
                       </td>
-                      {/* Contract */}
                       <td style={{ padding: '4px 5px', width: 90 }}>
                         <select value={a.contractStatus} onChange={e => updateAccount(a.idx, { contractStatus: e.target.value })} style={tblSelect}>
                           {['prospect', 'active', 'expiring', 'expired', 'none'].map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
                       </td>
-                      {/* Priority */}
                       <td style={{ padding: '4px 5px', width: 80 }}>
                         <select value={a.strategicPriority} onChange={e => updateAccount(a.idx, { strategicPriority: e.target.value })} style={tblSelect}>
                           {['high', 'medium', 'low'].map(p => <option key={p} value={p}>{p}</option>)}
                         </select>
                       </td>
-                      {/* Zone */}
                       <td style={{ padding: '4px 8px', width: 80 }}>
                         <select
                           value={a.zone}
                           onChange={e => updateAccount(a.idx, { zone: e.target.value })}
-                          style={{
-                            ...tblSelect,
-                            fontWeight: 700,
-                            color: ZONE_COLORS[a.zone] ?? 'var(--color-text-primary)',
-                          }}
+                          style={{ ...tblSelect, fontWeight: 700, color: ZONE_COLORS[a.zone] ?? 'var(--color-text-primary)' }}
                         >
                           {['green', 'yellow', 'red'].map(z => <option key={z} value={z}>{z}</option>)}
                         </select>
                       </td>
+                      {/* Custom field columns */}
+                      {enabledFields.map(f => (
+                        <td key={f.key} style={{ padding: '4px 5px', minWidth: 90 }}>
+                          {f.type === 'select' ? (
+                            <select
+                              value={a.customFields[f.key] ?? ''}
+                              onChange={e => updateAccountCustomField(a.idx, f.key, e.target.value)}
+                              style={tblSelect}
+                            >
+                              <option value="">—</option>
+                              {(f.options ?? []).map(o => <option key={o} value={o}>{o}</option>)}
+                            </select>
+                          ) : (
+                            <input
+                              type={f.type === 'number' ? 'number' : 'text'}
+                              value={a.customFields[f.key] ?? ''}
+                              onChange={e => updateAccountCustomField(a.idx, f.key, e.target.value)}
+                              placeholder="—"
+                              style={tblInput}
+                            />
+                          )}
+                        </td>
+                      ))}
                     </tr>
                   ))}
                 </tbody>
@@ -749,7 +1098,7 @@ export default function TemplateWizard({ onClose, onTemplateCreated }: Props) {
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-              <button onClick={() => setStep('template')} style={ghostBtn}>← Back</button>
+              <button onClick={() => setStep('fields')} style={ghostBtn}>← Back</button>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button onClick={onClose} style={ghostBtn}>Cancel</button>
                 <button
@@ -775,7 +1124,8 @@ export default function TemplateWizard({ onClose, onTemplateCreated }: Props) {
             </h3>
             <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 6 }}>
               <strong style={{ color: 'var(--color-text-primary)' }}>{templateName}</strong> was created with{' '}
-              {attractCriteria.length + capabCriteria.length} scoring criteria.
+              {attractCriteria.length + capabCriteria.length} scoring criteria
+              {enabledFields.length > 0 ? ` and ${enabledFields.length} custom field${enabledFields.length !== 1 ? 's' : ''}` : ''}.
             </p>
             <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 32 }}>
               {accounts.filter(a => a.selected).length} accounts were added to your portfolio.

@@ -6,9 +6,51 @@ import ZoneBadge from './ZoneBadge';
 import { exportCSV } from '../lib/csv';
 import { formatCurrency } from '../lib/currency';
 
+const DEFAULT_CHART_CONFIG = { sizeField: 'size', colorField: 'zone' };
+
+const STANDARD_SIZE_OPTIONS = [{ key: 'size', label: 'Revenue (K€)' }];
+const STANDARD_COLOR_OPTIONS = [
+  { key: 'zone', label: 'Performance Zone' },
+  { key: 'contractStatus', label: 'Contract Status' },
+  { key: 'strategicPriority', label: 'Strategic Priority' },
+  { key: 'type', label: 'Account Type' },
+  { key: 'ownership', label: 'Ownership' },
+];
+
 export default function PortfolioScreen() {
-  const { setSelectedAccountId, enrichedAccounts, activeTemplate, scores } = useKAMStore();
+  const { setSelectedAccountId, enrichedAccounts, activeTemplate, scores, updateTemplate } = useKAMStore();
   const [showList, setShowList] = useState(true);
+
+  const chartConfig = activeTemplate.chartConfig ?? DEFAULT_CHART_CONFIG;
+  const accountFields = activeTemplate.accountFields ?? [];
+
+  function updateChartConfig(patch: { sizeField?: string; colorField?: string }) {
+    updateTemplate({ ...activeTemplate, chartConfig: { ...chartConfig, ...patch } });
+  }
+
+  const sizeOptions = [
+    ...STANDARD_SIZE_OPTIONS,
+    ...accountFields.filter(f => f.type === 'number').map(f => ({
+      key: f.key,
+      label: `${f.name}${f.unit ? ` (${f.unit})` : ''}`,
+    })),
+  ];
+
+  const colorOptions = [
+    ...STANDARD_COLOR_OPTIONS,
+    ...accountFields.filter(f => f.type === 'select' || f.type === 'text').map(f => ({
+      key: f.key,
+      label: f.name,
+    })),
+  ];
+
+  const ctrlSelect: React.CSSProperties = {
+    padding: '4px 8px', borderRadius: 6, fontSize: 11, fontWeight: 500,
+    border: '1px solid var(--color-border)',
+    background: 'var(--color-bg)',
+    color: 'var(--color-text-primary)',
+    cursor: 'pointer',
+  };
 
   return (
     <div style={{ padding: '16px 20px', maxWidth: 1100, margin: '0 auto', width: '100%' }}>
@@ -41,9 +83,9 @@ export default function PortfolioScreen() {
         </button>
       </div>
 
-      {/* Chart + Metrics side-by-side on large screens */}
+      {/* Chart + Metrics side-by-side */}
       <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', marginBottom: 14 }}>
-        {/* Chart */}
+        {/* Chart card */}
         <div style={{
           flex: 1,
           background: 'var(--color-surface)',
@@ -51,6 +93,37 @@ export default function PortfolioScreen() {
           borderRadius: 12, padding: 12,
           minWidth: 0,
         }}>
+          {/* Chart controls */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-tertiary)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+              Bubble:
+            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>Size</span>
+              <select
+                value={chartConfig.sizeField}
+                onChange={e => updateChartConfig({ sizeField: e.target.value })}
+                style={ctrlSelect}
+              >
+                {sizeOptions.map(o => (
+                  <option key={o.key} value={o.key}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ width: 1, height: 16, background: 'var(--color-border)' }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>Color</span>
+              <select
+                value={chartConfig.colorField}
+                onChange={e => updateChartConfig({ colorField: e.target.value })}
+                style={ctrlSelect}
+              >
+                {colorOptions.map(o => (
+                  <option key={o.key} value={o.key}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
           <BubbleChart onBubbleClick={setSelectedAccountId} />
         </div>
 

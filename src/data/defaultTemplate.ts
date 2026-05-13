@@ -107,6 +107,8 @@ export const defaultTemplate: Template = {
       ],
     },
   ],
+  accountFields: [],
+  chartConfig: { sizeField: 'size', colorField: 'zone' },
   capabilityCriteria: [
     {
       id: 'c1',

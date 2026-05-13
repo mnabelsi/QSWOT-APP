@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Read(//c/c/Users/mahmo/Desktop/Antigravity Projects/**)",
-      "Read(//c/Users/mahmo/.claude/projects/c--Users-mahmo-Desktop-Antigravity-Projects-QSWOT-App/memory/**)"
+      "Read(//c/Users/mahmo/.claude/projects/c--Users-mahmo-Desktop-Antigravity-Projects-QSWOT-App/memory/**)",
+      "Bash(npx vite *)"
     ],
     "additionalDirectories": [
       "c:\\Users\\mahmo\\.claude\\projects\\c--Users-mahmo-Desktop-Antigravity-Projects-QSWOT-App\\memory"
