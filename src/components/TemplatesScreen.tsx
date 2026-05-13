@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import { useKAMStore } from '../hooks/useKAMStore';
+import { useClaudeConfig } from '../hooks/useClaudeConfig';
 import TemplateEditor from './TemplateEditor';
 import ConfirmDialog from './ConfirmDialog';
+import AIConfigModal from './AIConfigModal';
+import TemplateWizard from './TemplateWizard';
 import { generateId } from '../lib/ids';
 import type { Template } from '../types';
 
@@ -10,9 +13,12 @@ export default function TemplatesScreen() {
     templates, deleteTemplate, setActiveTemplate,
     duplicateTemplate, addTemplate, resetAllData,
   } = useKAMStore();
+  const { isConfigured } = useClaudeConfig();
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showResetDialog, setShowResetDialog] = useState(false);
+  const [showAIConfig, setShowAIConfig] = useState(false);
+  const [showWizard, setShowWizard] = useState(false);
 
   const editingTemplate = templates.find(t => t.id === editingId);
 
@@ -47,17 +53,53 @@ export default function TemplatesScreen() {
             Configure scoring criteria and weights for your portfolio
           </p>
         </div>
-        <button
-          onClick={handleCreateBlank}
-          style={{
-            padding: '8px 16px', borderRadius: 8,
-            fontSize: 12, fontWeight: 600,
-            color: '#ffffff', background: 'var(--color-interactive)',
-            border: 'none', cursor: 'pointer',
-          }}
-        >
-          + Create template
-        </button>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button
+            onClick={() => setShowAIConfig(true)}
+            title="Configure Claude AI"
+            style={{
+              padding: '7px 10px', borderRadius: 8,
+              fontSize: 13, fontWeight: 500,
+              color: isConfigured ? 'var(--color-interactive)' : 'var(--color-text-tertiary)',
+              background: isConfigured ? 'rgba(108,92,231,0.08)' : 'var(--color-bg)',
+              border: '1px solid var(--color-border)', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 5,
+            }}
+          >
+            <span style={{ fontSize: 14 }}>⚙</span>
+            <span style={{ fontSize: 11, fontWeight: 600 }}>AI Config{isConfigured ? ' ✓' : ''}</span>
+          </button>
+          <button
+            onClick={() => {
+              if (isConfigured) {
+                setShowWizard(true);
+              } else {
+                setShowAIConfig(true);
+              }
+            }}
+            style={{
+              padding: '8px 14px', borderRadius: 8,
+              fontSize: 12, fontWeight: 600,
+              color: '#fff',
+              background: 'linear-gradient(135deg, #6c5ce7 0%, #a29bfe 100%)',
+              border: 'none', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 6,
+            }}
+          >
+            <span style={{ fontSize: 14 }}>✦</span> AI Wizard
+          </button>
+          <button
+            onClick={handleCreateBlank}
+            style={{
+              padding: '8px 16px', borderRadius: 8,
+              fontSize: 12, fontWeight: 600,
+              color: '#ffffff', background: 'var(--color-interactive)',
+              border: 'none', cursor: 'pointer',
+            }}
+          >
+            + Create template
+          </button>
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 10 }}>
@@ -217,6 +259,22 @@ export default function TemplatesScreen() {
         onCancel={() => setShowResetDialog(false)}
         danger
       />
+
+      {showAIConfig && (
+        <AIConfigModal
+          onClose={() => setShowAIConfig(false)}
+        />
+      )}
+
+      {showWizard && (
+        <TemplateWizard
+          onClose={() => setShowWizard(false)}
+          onTemplateCreated={(id) => {
+            setShowWizard(false);
+            setEditingId(id);
+          }}
+        />
+      )}
     </div>
   );
 }

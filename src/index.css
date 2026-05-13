@@ -66,3 +66,7 @@ button {
 ::selection {
   background-color: color-mix(in srgb, var(--color-interactive) 20%, transparent);
 }
+
+@keyframes kam-spin {
+  to { transform: rotate(360deg); }
+}

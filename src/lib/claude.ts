@@ -1,0 +1,161 @@
+export const CLAUDE_MODELS = [
+  { id: 'claude-sonnet-4-6', label: 'Sonnet 4.6 — Balanced (Recommended)' },
+  { id: 'claude-opus-4-7', label: 'Opus 4.7 — Most Capable' },
+  { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5 — Fastest & Cheapest' },
+] as const;
+
+export interface ClaudeConfig {
+  apiKey: string;
+  model: string;
+}
+
+export interface SuggestedCriterion {
+  name: string;
+  unit: string;
+  weight: number;
+  benchmarks: { score: number; label: string }[];
+}
+
+export interface TemplateAnalysis {
+  companyName: string;
+  industry: string;
+  summary: string;
+  attractivenessCriteria: SuggestedCriterion[];
+  capabilityCriteria: SuggestedCriterion[];
+}
+
+export interface SuggestedAccount {
+  name: string;
+  size: number;
+  type: string;
+  beds: number | null;
+  territory: string;
+  ownership: string;
+  contractStatus: string;
+  strategicPriority: string;
+  zone: string;
+  notes: string;
+}
+
+async function callClaude(
+  config: ClaudeConfig,
+  system: string,
+  userMessage: string,
+  maxTokens = 4096,
+): Promise<string> {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': config.apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model: config.model,
+      max_tokens: maxTokens,
+      system,
+      messages: [{ role: 'user', content: userMessage }],
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    throw new Error(err?.error?.message ?? `API error: HTTP ${res.status}`);
+  }
+
+  const data = await res.json();
+  return data.content[0].text as string;
+}
+
+export async function analyzeCompanyWebsite(
+  config: ClaudeConfig,
+  website: string,
+): Promise<TemplateAnalysis> {
+  const text = await callClaude(
+    config,
+    `You are a KAM (Key Account Management) expert specializing in healthcare and pharmaceutical markets. Respond with valid JSON only — no markdown fences, no commentary before or after.`,
+    `Analyze the company at this URL: ${website}
+
+Generate a KAM scoring template tailored to this company's products, industry, and target market.
+
+Requirements:
+- 5–7 Opportunity Attractiveness criteria: measure how attractive each account is FROM the seller's perspective (revenue potential, strategic value, purchasing behavior, etc.)
+- 5–7 Capability to Serve criteria: measure the company's ability to serve each account (logistics, product fit, access, coverage, etc.)
+
+Each criterion:
+  - name: short, clear criterion name
+  - unit: what is being measured (e.g. "K€/year", "% completion", "number of beds", "hours travel")
+  - weight: decimal (ALL weights within each axis MUST sum exactly to 1.0)
+  - benchmarks: exactly 5 objects sorted from best to worst:
+      [{"score":3,"label":"..."},{"score":2,"label":"..."},{"score":1,"label":"..."},{"score":0,"label":"..."},{"score":-1,"label":"..."}]
+
+Return ONLY this JSON (nothing before or after):
+{
+  "companyName": "...",
+  "industry": "...",
+  "summary": "One sentence describing the company and its market focus.",
+  "attractivenessCriteria": [...],
+  "capabilityCriteria": [...]
+}`,
+    4096,
+  );
+
+  const match = text.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error('AI returned no JSON. Please try again.');
+  try {
+    return JSON.parse(match[0]) as TemplateAnalysis;
+  } catch {
+    throw new Error('Could not parse AI response. Please try again.');
+  }
+}
+
+export async function researchPotentialAccounts(
+  config: ClaudeConfig,
+  companyName: string,
+  industry: string,
+  territory: string,
+): Promise<SuggestedAccount[]> {
+  const market = territory.trim() || 'META region (Middle East, Turkey, Africa)';
+
+  const text = await callClaude(
+    config,
+    `You are a healthcare market intelligence specialist. Identify realistic, named potential client accounts for medical device and pharmaceutical companies. Respond with a JSON array only — no markdown fences, no text before or after.`,
+    `List 8–10 top potential client accounts for ${companyName} (${industry}) in: ${market}.
+
+Focus on hospitals, clinics, university hospitals, and surgical centers that represent high business value.
+
+For each account provide:
+  - name: realistic and specific institution name (use actual or plausible names for the market)
+  - size: estimated annual revenue potential in K€ (integer, e.g. 450)
+  - type: one of → hospital | clinic | surgical_center | university_hospital | distributor | gpo
+  - beds: bed count as integer (null for non-hospitals)
+  - territory: specific city or sub-region within ${market}
+  - ownership: public | private | mixed
+  - contractStatus: prospect | active | expiring | none
+  - strategicPriority: high | medium | low
+  - zone: green | yellow | red (based on estimated attractiveness and fit)
+  - notes: one sentence explaining why this is a strong target account
+
+Return ONLY a JSON array (nothing before or after):
+[{"name":"...","size":500,"type":"hospital","beds":450,"territory":"...","ownership":"public","contractStatus":"prospect","strategicPriority":"high","zone":"green","notes":"..."}]`,
+    4096,
+  );
+
+  const match = text.match(/\[[\s\S]*\]/);
+  if (!match) throw new Error('AI returned no JSON array. Please try again.');
+  try {
+    return JSON.parse(match[0]) as SuggestedAccount[];
+  } catch {
+    throw new Error('Could not parse AI accounts response. Please try again.');
+  }
+}
+
+export async function testConnection(config: ClaudeConfig): Promise<void> {
+  await callClaude(
+    config,
+    'You are a test assistant.',
+    'Respond with only the word: OK',
+    10,
+  );
+}
