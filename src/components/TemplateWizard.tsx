@@ -13,7 +13,7 @@ import {
   type FieldSuggestion,
 } from '../lib/claude';
 import type {
-  Template, Criterion, Account,
+  Template, Criterion,
   AccountType, Ownership, ContractStatus, StrategicPriority,
   AccountFieldDef, ChartDisplayConfig,
 } from '../types';
