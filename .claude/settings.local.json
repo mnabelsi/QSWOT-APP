@@ -5,7 +5,10 @@
       "Read(//c/Users/mahmo/.claude/projects/c--Users-mahmo-Desktop-Antigravity-Projects-QSWOT-App/memory/**)",
       "Bash(npx vite *)",
       "Read(//c/Users/mahmo/Desktop/Antigravity/ Projects/QSWOT/ App/src/types/**)",
-      "Read(//c/Users/mahmo/Desktop/Antigravity/ Projects/QSWOT/ App/src/components/**)"
+      "Read(//c/Users/mahmo/Desktop/Antigravity/ Projects/QSWOT/ App/src/components/**)",
+      "Read(//c/Users/mahmo/Desktop/Antigravity Projects/**)",
+      "Bash(xargs grep *)",
+      "Bash(grep -E \"\\\\.\\(ts|tsx|js\\)$\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\mahmo\\.claude\\projects\\c--Users-mahmo-Desktop-Antigravity-Projects-QSWOT-App\\memory"

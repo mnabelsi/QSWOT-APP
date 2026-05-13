@@ -53,9 +53,38 @@ export function KAMProvider({ children }: { children: React.ReactNode }) {
     [templates]
   );
 
+  // One-time migration: assign templateId to accounts that predate the multi-template feature.
+  // Assigns each untagged account to the most recent template that existed at the time
+  // the account was created (by comparing createdAt timestamps).
+  React.useEffect(() => {
+    const unassigned = accounts.filter(a => !a.templateId);
+    if (unassigned.length === 0) return;
+
+    const sortedTemplates = [...templates].sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
+    const fallback = sortedTemplates[0];
+    if (!fallback) return;
+
+    setAccounts(prev => prev.map(account => {
+      if (account.templateId) return account;
+      const accountTime = new Date(account.createdAt).getTime();
+      let assigned = fallback;
+      for (const t of sortedTemplates) {
+        if (new Date(t.createdAt).getTime() <= accountTime) {
+          assigned = t;
+        } else {
+          break;
+        }
+      }
+      return { ...account, templateId: assigned.id };
+    }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const enrichedAccounts = useMemo(
     () => accounts
-      .filter(a => !a.templateId || a.templateId === activeTemplate.id)
+      .filter(a => a.templateId === activeTemplate.id)
       .map(a => enrichAccount(a, activeTemplate, scores)),
     [accounts, activeTemplate, scores]
   );
