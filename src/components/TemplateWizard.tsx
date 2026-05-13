@@ -37,6 +37,7 @@ interface WizardDraft {
   chartSizeField: string;
   chartColorField: string;
   accounts: LocalAccount[];
+  accountTypes: string[];
   sessionPrompts: SessionPrompts;
 }
 
@@ -92,7 +93,7 @@ interface LocalAccount {
   name: string;
   size: string;
   type: string;
-  beds: string;
+  capacity: string;
   territory: string;
   ownership: string;
   contractStatus: string;
@@ -134,8 +135,8 @@ function toLocalAccount(a: SuggestedAccount, idx: number): LocalAccount {
   for (const [k, v] of Object.entries(a.customFields ?? {})) customFields[k] = String(v);
   return {
     idx, selected: true,
-    name: a.name, size: String(a.size ?? 0), type: a.type ?? 'hospital',
-    beds: a.beds != null ? String(a.beds) : '', territory: a.territory ?? '',
+    name: a.name, size: String(a.size ?? 0), type: a.type ?? 'other',
+    capacity: a.capacity != null ? String(a.capacity) : '', territory: a.territory ?? '',
     ownership: a.ownership ?? 'public', contractStatus: a.contractStatus ?? 'prospect',
     strategicPriority: a.strategicPriority ?? 'medium', zone: a.zone ?? 'yellow',
     notes: a.notes ?? '', customFields,
@@ -460,6 +461,7 @@ export default function TemplateWizard({ onClose, onTemplateCreated }: Props) {
   const [chartSizeField, setChartSizeField] = useState(draft.chartSizeField ?? 'size');
   const [chartColorField, setChartColorField] = useState(draft.chartColorField ?? 'zone');
   const [accounts, setAccounts] = useState<LocalAccount[]>(draft.accounts ?? []);
+  const [accountTypes, setAccountTypes] = useState<string[]>(draft.accountTypes ?? []);
   const [createdTemplateId, setCreatedTemplateId] = useState<string | null>(null);
 
   // ── Session-level prompts (start from config or defaults, editable per-run)
@@ -478,7 +480,7 @@ export default function TemplateWizard({ onClose, onTemplateCreated }: Props) {
   // ── Auto-save draft
   useEffect(() => {
     if (step === 'done') { clearDraft(); return; }
-    const d: WizardDraft = { step, website, territory, analysis, templateName, attractCriteria, capabCriteria, fields, chartSizeField, chartColorField, accounts, sessionPrompts };
+    const d: WizardDraft = { step, website, territory, analysis, templateName, attractCriteria, capabCriteria, fields, chartSizeField, chartColorField, accounts, accountTypes, sessionPrompts };
     localStorage.setItem(DRAFT_KEY, JSON.stringify(d));
   }, [step, website, territory, analysis, templateName, attractCriteria, capabCriteria, fields, chartSizeField, chartColorField, accounts, sessionPrompts]);
 
@@ -499,7 +501,7 @@ export default function TemplateWizard({ onClose, onTemplateCreated }: Props) {
     setAnalysis(null); setTemplateName('');
     setAttractCriteria([]); setCapabCriteria([]);
     setFields([]); setChartSizeField('size'); setChartColorField('zone');
-    setAccounts([]); setCreatedTemplateId(null);
+    setAccounts([]); setAccountTypes([]); setCreatedTemplateId(null);
     setError(null); setOpenPrompt(null);
     setSessionPrompts({
       websiteAnalysis: config.prompts?.websiteAnalysis?.trim() || DEFAULT_PROMPTS.websiteAnalysis,
@@ -524,6 +526,7 @@ export default function TemplateWizard({ onClose, onTemplateCreated }: Props) {
       setTemplateName(`${result.companyName} KAM Template`);
       setAttractCriteria(result.attractivenessCriteria.map(toLocalCriterion));
       setCapabCriteria(result.capabilityCriteria.map(toLocalCriterion));
+      setAccountTypes(result.accountTypes ?? []);
       advanceTo('template');
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setLoading(null); }
@@ -551,7 +554,7 @@ export default function TemplateWizard({ onClose, onTemplateCreated }: Props) {
     try {
       const enabled = fields.filter(f => f.enabled);
       const defs: AccountFieldDef[] = enabled.map(f => ({ id: f.id, key: f.key, name: f.name, type: f.type, unit: f.unit, options: f.options }));
-      const results = await researchPotentialAccounts(sessionConfig(), analysis.companyName, analysis.industry, territory, analysis.summary, defs.length > 0 ? defs : undefined);
+      const results = await researchPotentialAccounts(sessionConfig(), analysis.companyName, analysis.industry, territory, analysis.summary, defs.length > 0 ? defs : undefined, accountTypes.length > 0 ? accountTypes : undefined);
       setAccounts(results.map(toLocalAccount));
       advanceTo('accounts');
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
@@ -570,6 +573,7 @@ export default function TemplateWizard({ onClose, onTemplateCreated }: Props) {
       attractivenessCriteria: attractCriteria.map(localToKAMCriterion),
       capabilityCriteria: capabCriteria.map(localToKAMCriterion),
       accountFields, chartConfig,
+      accountTypes: accountTypes.length > 0 ? accountTypes : undefined,
     };
     addTemplate(template);
     setCreatedTemplateId(template.id);
@@ -579,7 +583,7 @@ export default function TemplateWizard({ onClose, onTemplateCreated }: Props) {
         strategicPriority: (a.strategicPriority || 'medium') as StrategicPriority,
         contractStatus: (a.contractStatus || 'prospect') as ContractStatus,
         ownership: a.ownership ? (a.ownership as Ownership) : undefined,
-        territory: a.territory || undefined, beds: a.beds ? Number(a.beds) : undefined,
+        territory: a.territory || undefined, beds: a.capacity ? Number(a.capacity) : undefined,
         notes: a.notes ? `[AI Zone: ${a.zone}] ${a.notes}` : `[AI Zone: ${a.zone}]`,
         customFields: convertCustomFields(a.customFields, enabled),
       });
@@ -824,7 +828,7 @@ export default function TemplateWizard({ onClose, onTemplateCreated }: Props) {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
                 <thead>
                   <tr style={{ background: 'var(--color-bg)', borderBottom: '1px solid var(--color-border)' }}>
-                    {['', 'Name', 'Size (K€)', 'Type', 'Beds', 'Territory', 'Ownership', 'Contract', 'Priority', 'Zone', ...enabledFields.map(f => f.name)].map((h, i) => (
+                    {['', 'Name', 'Size (K€)', 'Type', 'Capacity', 'Territory', 'Ownership', 'Contract', 'Priority', 'Zone', ...enabledFields.map(f => f.name)].map((h, i) => (
                       <th key={i} style={{ padding: '8px 8px', textAlign: 'left', fontSize: 9, fontWeight: 700, color: 'var(--color-text-tertiary)', letterSpacing: '0.05em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
                     ))}
                   </tr>
@@ -837,10 +841,10 @@ export default function TemplateWizard({ onClose, onTemplateCreated }: Props) {
                       <td style={{ padding: '4px 5px', width: 80 }}><input type="number" value={a.size} onChange={e => updateAccount(a.idx, { size: e.target.value })} style={tblInput} /></td>
                       <td style={{ padding: '4px 5px', width: 120 }}>
                         <select value={a.type} onChange={e => updateAccount(a.idx, { type: e.target.value })} style={tblSelect}>
-                          {['hospital', 'clinic', 'surgical_center', 'university_hospital', 'distributor', 'gpo', 'other'].map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
+                          {(accountTypes.length > 0 ? accountTypes : ['enterprise', 'organization', 'distributor', 'partner', 'other']).map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
                         </select>
                       </td>
-                      <td style={{ padding: '4px 5px', width: 70 }}><input type="number" value={a.beds} onChange={e => updateAccount(a.idx, { beds: e.target.value })} placeholder="—" style={tblInput} /></td>
+                      <td style={{ padding: '4px 5px', width: 70 }}><input type="number" value={a.capacity} onChange={e => updateAccount(a.idx, { capacity: e.target.value })} placeholder="—" style={tblInput} /></td>
                       <td style={{ padding: '4px 5px', minWidth: 110 }}><input value={a.territory} onChange={e => updateAccount(a.idx, { territory: e.target.value })} style={tblInput} /></td>
                       <td style={{ padding: '4px 5px', width: 90 }}>
                         <select value={a.ownership} onChange={e => updateAccount(a.idx, { ownership: e.target.value })} style={tblSelect}>

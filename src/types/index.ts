@@ -44,6 +44,7 @@ export interface Template {
   capabilityCriteria: Criterion[];
   accountFields?: AccountFieldDef[];     // custom fields for this template
   chartConfig?: ChartDisplayConfig;      // how to encode bubbles visually
+  accountTypes?: string[];              // industry-specific account type options
 }
 
 // ─────────────────────────────────────────────────────────────

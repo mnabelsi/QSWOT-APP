@@ -4,11 +4,18 @@ import { useKAMStore } from '../hooks/useKAMStore';
 import { parseCurrencyInput } from '../lib/currency';
 import type { AccountType } from '../types';
 
+const FALLBACK_ACCOUNT_TYPES = ['enterprise', 'organization', 'clinic', 'distributor', 'partner', 'other'];
+
 export default function AccountForm({ onClose }: { onClose: () => void }) {
-  const { addAccount } = useKAMStore();
+  const { addAccount, templates } = useKAMStore();
+  const activeTemplate = templates.find(t => t.isActive);
+  const typeOptions = activeTemplate?.accountTypes?.length
+    ? activeTemplate.accountTypes
+    : FALLBACK_ACCOUNT_TYPES;
+
   const [name, setName] = useState('');
   const [size, setSize] = useState('');
-  const [type, setType] = useState<AccountType>('hospital');
+  const [type, setType] = useState<AccountType>(typeOptions[0]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -18,7 +25,7 @@ export default function AccountForm({ onClose }: { onClose: () => void }) {
     addAccount({ name: name.trim(), size: parsed, type });
     setName('');
     setSize('');
-    setType('hospital');
+    setType(typeOptions[0]);
     onClose();
   };
 
@@ -81,11 +88,9 @@ export default function AccountForm({ onClose }: { onClose: () => void }) {
             onChange={e => setType(e.target.value as AccountType)}
             style={{ ...inputStyle, cursor: 'pointer' }}
           >
-            <option value="hospital">Hospital</option>
-            <option value="clinic">Clinic</option>
-            <option value="surgical">Surgical</option>
-            <option value="distributor">Distributor</option>
-            <option value="other">Other</option>
+            {typeOptions.map(t => (
+              <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>
+            ))}
           </select>
         </div>
         <div style={{ display: 'flex', gap: 6 }}>

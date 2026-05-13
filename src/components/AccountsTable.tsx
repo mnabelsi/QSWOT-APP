@@ -15,7 +15,7 @@ const ALL_COLUMNS = [
   { id: 'name', label: 'Name' },
   { id: 'size', label: 'Size (€)' },
   { id: 'type', label: 'Type' },
-  { id: 'beds', label: 'Hospital Beds' },
+  { id: 'beds', label: 'Capacity' },
   { id: 'territory', label: 'Territory' },
   { id: 'ownership', label: 'Ownership' },
   { id: 'contractStatus', label: 'Contract' },
